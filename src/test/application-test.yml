@@ -1,0 +1,7 @@
+solr-test:
+  vectorizer-mapped-port: ${random.port}
+
+grpc:
+  client:
+    plaintext: true
+    max-retry-attempts: 10

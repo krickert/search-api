@@ -19,6 +19,12 @@ micronaut:
               secret: ${JWT_GENERATOR_SIGNATURE_SECRET:pleaseChangeThisSecretForANewOne}
     enabled: false
 
+grpc:
+  client:
+    plaintext: true
+    max-retry-attempts: 10
+
+
 search-api:
   solr:
     url: http://localhost:8983/solr

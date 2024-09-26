@@ -1,100 +1,89 @@
 package com.krickert.search.api;
 
+import com.krickert.search.api.solr.SolrTest;
+import com.krickert.search.service.EmbeddingServiceGrpc;
+import com.krickert.search.service.EmbeddingsVectorReply;
+import com.krickert.search.service.EmbeddingsVectorRequest;
+import io.grpc.ManagedChannel;
+import io.micronaut.context.ApplicationContext;
+import io.micronaut.context.env.PropertySource;
+import io.micronaut.grpc.annotation.GrpcChannel;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
-import org.apache.solr.client.solrj.SolrClient;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.apache.solr.client.solrj.SolrQuery;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
-import org.apache.solr.client.solrj.request.CollectionAdminRequest;
-import org.apache.solr.client.solrj.request.schema.SchemaRequest;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.UpdateResponse;
-import org.apache.solr.client.solrj.response.schema.SchemaResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.SolrContainer;
-import org.testcontainers.containers.wait.strategy.LogMessageWaitStrategy;
 import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Testcontainers
-@MicronautTest
-public class SolrVectorizerIntegrationTest {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@MicronautTest(environments = "test") // Ensure the correct environment is used
+public class SolrVectorizerIntegrationTest extends SolrTest {
 
     private static final Logger log = LoggerFactory.getLogger(SolrVectorizerIntegrationTest.class);
 
-    @Container
-    public static SolrContainer solrContainer = new SolrContainer(DockerImageName.parse("solr:9.7.0")) {
-        @Override
-        protected void configure() {
-            this.addExposedPort(8983);
-            String command = "solr -c -f";
-            this.setCommand(command);
-            this.waitStrategy =
-                    new LogMessageWaitStrategy()
-                            .withRegEx(".*Server Started.*")
-                            .withStartupTimeout(Duration.of(180, ChronoUnit.SECONDS));
-        }
-    };
+    @Singleton
+    EmbeddingServiceGrpc.EmbeddingServiceBlockingStub reactiveStub(
+            @GrpcChannel("https://localhost:${solr-test.vectorizer-mapped-port}")
+            ManagedChannel channel) {
+        return EmbeddingServiceGrpc.newBlockingStub(
+                channel
+        );
+    }
 
+    @SuppressWarnings("resource")
     @Container
     public static GenericContainer<?> vectorizerContainer = new GenericContainer<>(DockerImageName.parse("krickert/vectorizer:1.0-SNAPSHOT"))
             .withExposedPorts(50401);
 
-    private static SolrClient solrClient;
     private static String vectorizerHost;
     private static Integer vectorizerPort;
 
-    @BeforeAll
-    public static void setUp() throws Exception {
-        solrContainer.start();
-        vectorizerContainer.start();
+    @Inject
+    ApplicationContext context;
 
-        String solrBaseUrl = "http://" + solrContainer.getHost() + ":" + solrContainer.getMappedPort(8983) + "/solr";
-        solrClient = new HttpSolrClient.Builder(solrBaseUrl).build();
+    @BeforeAll
+    @Override
+    @SuppressWarnings("resource")
+    public void setUp() throws Exception {
+        super.setUp(); // Call the parent method to setup Solr
+
+        vectorizerContainer.start();
 
         vectorizerHost = vectorizerContainer.getHost();
         vectorizerPort = vectorizerContainer.getMappedPort(50401);
+
+
+        // Set the dynamic port property in the application context
+        context.getEnvironment().addPropertySource(PropertySource.of(
+                "test",
+                Collections.singletonMap("solr-test.vectorizer-mapped-port", vectorizerPort)
+        ));
 
         // Logging for debugging
         log.info("Vectorizer running on {}:{}", vectorizerHost, vectorizerPort);
     }
 
     @AfterAll
-    public static void tearDown() throws Exception {
-        if (solrClient != null) {
-            solrClient.close();
+    @Override
+    public void tearDown() throws Exception {
+        if (vectorizerContainer != null) {
+            vectorizerContainer.stop();
         }
-        solrContainer.stop();
-        vectorizerContainer.stop();
-    }
-
-    @BeforeEach
-    public void beforeEach() throws Exception {
-        // Create collection before each test
-        CollectionAdminRequest.Create createCollection = CollectionAdminRequest.createCollection("documents", 1, 1);
-        createCollection.process(solrClient);
-
-        // Define schema for the collection
-        addField("title", "string", false);
-    }
-
-    @AfterEach
-    public void afterEach() throws Exception {
-        // Delete collection after each test
-        CollectionAdminRequest.Delete deleteCollection = CollectionAdminRequest.deleteCollection("documents");
-        deleteCollection.process(solrClient);
+        super.tearDown(); // Call the parent method to teardown Solr
     }
 
     @Test
@@ -136,34 +125,19 @@ public class SolrVectorizerIntegrationTest {
         assertTrue(documentsAfterDelete.isEmpty());
     }
 
-    // Newly added test interacting with vectorizer service
     @Test
     public void testVectorizerGRPCConnection() {
-        // Considering the client implementation for gRPC is available, you would initialize and use the client here.
-        // Placeholder for the actual interaction with the vectorizer gRPC service.
-
-        // Example:
-        // VectorizerClient vectorizerClient = new VectorizerClient(vectorizerHost, vectorizerPort);
-        // String response = vectorizerClient.someGRPCMethod();
-        // assertNotNull(response);
-        // assertEquals("ExpectedResponse", response);
-
-        // Logging the vectorizer details for now
+        // Logging the vectorizer details
         log.info("Using vectorizer service at {}:{}", vectorizerHost, vectorizerPort);
         assertNotNull(vectorizerHost);
         assertNotNull(vectorizerPort);
+
+        // Now you can access the gRPC client bean (EmbeddingServiceGrpc.EmbeddingServiceBlockingStub)
+        EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient = context.getBean(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
+
+        EmbeddingsVectorReply reply = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText("Testing 1 2 3").build());
+        assertNotNull(reply);
+        assertEquals(384, reply.getEmbeddingsList().size());
     }
 
-    private void addField(String name, String type, boolean multiValued) throws Exception {
-        Map<String, Object> fieldAttributes = new HashMap<>();
-        fieldAttributes.put("name", name);
-        fieldAttributes.put("type", type);
-        fieldAttributes.put("multiValued", multiValued);
-
-        SchemaRequest.AddField addFieldUpdate = new SchemaRequest.AddField(fieldAttributes);
-        SchemaResponse.UpdateResponse addFieldResponse = addFieldUpdate.process(solrClient, "documents");
-
-        assertNotNull(addFieldResponse);
-        assertEquals(0, addFieldResponse.getStatus());
-    }
 }
