@@ -11,7 +11,7 @@ public class SearchApiController {
     @Inject
     private SearchApiConfig config;
 
-    @Get(uri = "/", produces = "application/json")
+    @Get(produces = "application/json")
     public SearchApiConfig index() {
         return config;
     }
