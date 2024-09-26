@@ -5,7 +5,6 @@ import com.krickert.search.api.*;
 import com.krickert.search.api.config.SearchApiConfig;
 import io.grpc.stub.StreamObserver;
 import io.micronaut.grpc.annotation.GrpcService;
-import io.micronaut.context.annotation.Value;
 import jakarta.inject.Inject;
 import org.apache.solr.client.solrj.response.QueryResponse;
 
@@ -63,14 +62,15 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         }
 
         // Facets
-        request.getFacetFieldsList().forEach(facetField -> 
-            params.put("facet.field", facetField.getField())
+        request.getFacetFieldsList().forEach(facetField ->
+                params.put("facet.field", facetField.getField())
         );
 
         // Range Facets
         request.getFacetRangesList().forEach(facetRange -> {
             params.put("facet.range", facetRange.getField());
-            if (facetRange.hasStart()) params.put("f." + facetRange.getField() + ".facet.range.start", facetRange.getStart());
+            if (facetRange.hasStart())
+                params.put("f." + facetRange.getField() + ".facet.range.start", facetRange.getStart());
             if (facetRange.hasEnd()) params.put("f." + facetRange.getField() + ".facet.range.end", facetRange.getEnd());
             if (facetRange.hasGap()) params.put("f." + facetRange.getField() + ".facet.range.gap", facetRange.getGap());
         });
@@ -85,20 +85,20 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
 
     private SearchResponse parseSolrResponse(QueryResponse solrResponse) {
         SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
-        
+
         // Map Solr documents to gRPC response
         solrResponse.getResults().forEach(solrDocument -> {
             SearchResult.Builder resultBuilder = SearchResult.newBuilder()
-                .setId(solrDocument.getFieldValue("id").toString())
-                .setTitle(solrDocument.getFieldValue("title").toString())
-                .setSnippet(solrDocument.getFieldValue("snippet").toString());
-            
+                    .setId(solrDocument.getFieldValue("id").toString())
+                    .setTitle(solrDocument.getFieldValue("title").toString())
+                    .setSnippet(solrDocument.getFieldValue("snippet").toString());
+
             responseBuilder.addResults(resultBuilder.build());
         });
 
         // Total results and query time
         responseBuilder.setTotalResults(solrResponse.getResults().getNumFound())
-                       .setQTime((int) solrResponse.getQTime());
+                .setQTime(solrResponse.getQTime());
 
         // Add timestamp
         responseBuilder.setTimeOfSearch(Timestamp.newBuilder().build());

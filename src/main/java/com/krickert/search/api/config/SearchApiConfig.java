@@ -1,9 +1,9 @@
 package com.krickert.search.api.config;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.MoreObjects;
 import io.micronaut.context.annotation.ConfigurationProperties;
 import io.micronaut.core.annotation.Introspected;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 @ConfigurationProperties("search-api")
 @Introspected
@@ -24,13 +24,11 @@ public class SearchApiConfig {
     @Introspected
     public static class SolrConfig {
 
+        private final CollectionConfig collectionConfig;
         @JsonProperty("url")
         private String url;
-
         @JsonProperty("authentication")
         private Authentication authentication;
-
-        private final CollectionConfig collectionConfig;
 
         // Constructor for injection
         public SolrConfig(CollectionConfig collectionConfig) {
@@ -66,6 +64,7 @@ public class SearchApiConfig {
                     .add("collectionConfig", collectionConfig)
                     .toString();
         }
+
         @ConfigurationProperties("authentication")
         @Introspected
         public static class Authentication {
@@ -196,6 +195,7 @@ public class SearchApiConfig {
                         .add("proxySettings", proxySettings)
                         .toString();
             }
+
             @ConfigurationProperties("proxy-settings")
             @Introspected
             public static class ProxySettings {
@@ -245,8 +245,6 @@ public class SearchApiConfig {
             }
         }
     }
-
-
 
 
 }

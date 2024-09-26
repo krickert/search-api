@@ -1,8 +1,9 @@
 package com.krickert.search.api.config;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.micronaut.context.annotation.ConfigurationProperties;
 import io.micronaut.core.annotation.Introspected;
-import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 import java.util.Map;
 
@@ -10,13 +11,11 @@ import java.util.Map;
 @Introspected
 public class CollectionConfig {
 
+    private final Map<String, VectorFieldInfo> vectorFields;
     @JsonProperty("collection-name")
     private String collectionName;
-
     @JsonProperty("keyword-query-fields")
     private List<String> keywordQueryFields;
-
-    private final Map<String, VectorFieldInfo> vectorFields;
 
     // Constructor for injection
     public CollectionConfig(Map<String, VectorFieldInfo> vectorFields) {

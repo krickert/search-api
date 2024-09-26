@@ -7,14 +7,9 @@ import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.apache.solr.client.solrj.request.schema.SchemaRequest;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.UpdateResponse;
-import org.apache.solr.client.solrj.response.schema.SchemaResponse;
-import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.SolrDocumentList;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.apache.solr.common.SolrInputDocument;
+import org.junit.jupiter.api.*;
 import org.testcontainers.containers.SolrContainer;
 import org.testcontainers.containers.wait.strategy.LogMessageWaitStrategy;
 import org.testcontainers.junit.jupiter.Container;
@@ -26,9 +21,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
 public class SolrIntegrationTest {
@@ -57,6 +50,14 @@ public class SolrIntegrationTest {
         solrClient = new HttpSolrClient.Builder(solrBaseUrl).build();
     }
 
+    @AfterAll
+    public static void tearDown() throws Exception {
+        if (solrClient != null) {
+            solrClient.close();
+        }
+        solrContainer.stop();
+    }
+
     @BeforeEach
     public void beforeEach() throws Exception {
         // Create collection before each test
@@ -72,14 +73,6 @@ public class SolrIntegrationTest {
         // Delete collection after each test
         CollectionAdminRequest.Delete deleteCollection = CollectionAdminRequest.deleteCollection("documents");
         deleteCollection.process(solrClient);
-    }
-
-    @AfterAll
-    public static void tearDown() throws Exception {
-        if (solrClient != null) {
-            solrClient.close();
-        }
-        solrContainer.stop();
     }
 
     @Test

@@ -1,9 +1,6 @@
 package com.krickert.search.api;
 
-import io.micronaut.context.annotation.Requires;
-import io.micronaut.context.env.Environment;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
-import jakarta.inject.Inject;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
@@ -28,7 +25,6 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -75,6 +71,15 @@ public class SolrVectorizerIntegrationTest {
         log.info("Vectorizer running on {}:{}", vectorizerHost, vectorizerPort);
     }
 
+    @AfterAll
+    public static void tearDown() throws Exception {
+        if (solrClient != null) {
+            solrClient.close();
+        }
+        solrContainer.stop();
+        vectorizerContainer.stop();
+    }
+
     @BeforeEach
     public void beforeEach() throws Exception {
         // Create collection before each test
@@ -90,15 +95,6 @@ public class SolrVectorizerIntegrationTest {
         // Delete collection after each test
         CollectionAdminRequest.Delete deleteCollection = CollectionAdminRequest.deleteCollection("documents");
         deleteCollection.process(solrClient);
-    }
-
-    @AfterAll
-    public static void tearDown() throws Exception {
-        if (solrClient != null) {
-            solrClient.close();
-        }
-        solrContainer.stop();
-        vectorizerContainer.stop();
     }
 
     @Test
