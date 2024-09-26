@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class SolrHelper {
 
     public static void addDenseVectorField(SolrClient solrClient, String collectionName, String fieldName, int dimensions) throws Exception {
@@ -64,4 +67,18 @@ public class SolrHelper {
 
         return String.format("{!knn f=%s topK=%d}[%s]", field, topK, vectorString);
     }
+
+    public static void addField(SolrClient solrClient, String name, String type, boolean multiValued, String collection) throws Exception {
+        Map<String, Object> fieldAttributes = new HashMap<>();
+        fieldAttributes.put("name", name);
+        fieldAttributes.put("type", type);
+        fieldAttributes.put("multiValued", multiValued);
+
+        SchemaRequest.AddField addFieldUpdate = new SchemaRequest.AddField(fieldAttributes);
+        SchemaResponse.UpdateResponse addFieldResponse = addFieldUpdate.process(solrClient, collection);
+
+        assertNotNull(addFieldResponse);
+        assertEquals(0, addFieldResponse.getStatus());
+    }
+
 }

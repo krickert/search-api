@@ -487,4 +487,6 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
         assertEquals("41291", boostedDocuments.get(1).getFieldValue("id"));
         assertEquals("41578", boostedDocuments.get(2).getFieldValue("id"));
     }
+
+
 }

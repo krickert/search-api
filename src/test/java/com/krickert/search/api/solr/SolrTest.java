@@ -3,8 +3,6 @@ package com.krickert.search.api.solr;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
-import org.apache.solr.client.solrj.request.schema.SchemaRequest;
-import org.apache.solr.client.solrj.response.schema.SchemaResponse;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.testcontainers.containers.SolrContainer;
@@ -15,16 +13,14 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static com.krickert.search.api.solr.SolrHelper.addField;
 
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class SolrTest {
 
     public static final String DEFAULT_COLLECTION = "documents";
+    public static final String VECTOR_COLLECTION = "vector-documents";
     Logger log = org.slf4j.LoggerFactory.getLogger(SolrTest.class);
 
     @Container
@@ -67,30 +63,24 @@ public abstract class SolrTest {
         createCollection.process(solrClient);
         log.info("Creating temporary collection: {}", DEFAULT_COLLECTION);
         // Define schema for the collection
-        addField("title", "string", false);
-        addField("body", "text_general", false);
-        SolrHelper.addDenseVectorField(solrClient, "documents", "title-vector", 384);
-        SolrHelper.addDenseVectorField(solrClient, "documents", "body-vector", 384);
-
+        addField(solrClient,"title", "string", false, DEFAULT_COLLECTION);
+        addField(solrClient,"body", "text_general", false, DEFAULT_COLLECTION);
+        addField(solrClient,"body_paragraphs", "text_general", true, DEFAULT_COLLECTION);
+        SolrHelper.addDenseVectorField(solrClient, DEFAULT_COLLECTION, "title-vector", 384);
+        SolrHelper.addDenseVectorField(solrClient, DEFAULT_COLLECTION, "body-vector", 384);
+        CollectionAdminRequest.Create createVectorCollection = CollectionAdminRequest.createCollection(VECTOR_COLLECTION, 1, 1);
+        createVectorCollection.process(solrClient);
+        addField(solrClient, "parent-id", "string", false, VECTOR_COLLECTION);
+        addField(solrClient,"chunk-number", "pint", false, VECTOR_COLLECTION);
     }
 
     @AfterEach
     public void afterEach() throws Exception {
         // Delete collection after each test
-        CollectionAdminRequest.Delete deleteCollection = CollectionAdminRequest.deleteCollection("documents");
+        CollectionAdminRequest.Delete deleteCollection = CollectionAdminRequest.deleteCollection(DEFAULT_COLLECTION);
         deleteCollection.process(solrClient);
+        CollectionAdminRequest.Delete deleteVectorCollection = CollectionAdminRequest.deleteCollection(VECTOR_COLLECTION);
+        deleteVectorCollection.process(solrClient);
     }
 
-    protected void addField(String name, String type, boolean multiValued) throws Exception {
-        Map<String, Object> fieldAttributes = new HashMap<>();
-        fieldAttributes.put("name", name);
-        fieldAttributes.put("type", type);
-        fieldAttributes.put("multiValued", multiValued);
-
-        SchemaRequest.AddField addFieldUpdate = new SchemaRequest.AddField(fieldAttributes);
-        SchemaResponse.UpdateResponse addFieldResponse = addFieldUpdate.process(solrClient, "documents");
-
-        assertNotNull(addFieldResponse);
-        assertEquals(0, addFieldResponse.getStatus());
-    }
 }
