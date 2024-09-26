@@ -16,6 +16,7 @@ import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.UpdateResponse;
@@ -374,5 +375,116 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
         bodyDocuments.forEach(doc -> log.info("Doc ID: {}, TItle: {}", doc.getFieldValue("id"), doc.getFieldValue("title")));
 
         // Additional assertions can be added based on expected results
+    }
+
+    @Test
+    public void sampleWikiDocumentKeywordAndBoostedDenseVectorSearchTest() {
+        EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient = context.getBean(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
+        Collection<PipeDocument> docs = TestDataHelper.getFewHunderedPipeDocuments();
+        Collection<SolrInputDocument> solrDocs = new ArrayList<>();
+
+        for (PipeDocument doc : docs) {
+            SolrInputDocument inputDocument = protobufToSolrDocument.convertProtobufToSolrDocument(doc);
+
+            inputDocument.addField("title-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(doc.getTitle()).build()).getEmbeddingsList());
+            inputDocument.addField("body-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(doc.getBody()).build()).getEmbeddingsList());
+
+            solrDocs.add(inputDocument);
+        }
+
+        try {
+            solrClient.add(DEFAULT_COLLECTION, solrDocs);
+            solrClient.commit(DEFAULT_COLLECTION);
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+        }
+
+        // The target query text for KNN search
+        String queryText = "maintaining computers in large organizations";
+
+        // Generate embeddings for the query text
+        EmbeddingsVectorReply titleQueryVector = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(queryText).build());
+        EmbeddingsVectorReply bodyQueryVector = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(queryText).build());
+
+        // Confirm that the embeddings are generated correctly
+        assertNotNull(titleQueryVector);
+        assertEquals(384, titleQueryVector.getEmbeddingsList().size());
+        assertNotNull(bodyQueryVector);
+        assertEquals(384, bodyQueryVector.getEmbeddingsList().size());
+
+        // Create vector queries using a utility function
+        String titleVectorQuery = SolrHelper.buildVectorQuery("title-vector", titleQueryVector.getEmbeddingsList(), 30);
+        String bodyVectorQuery = SolrHelper.buildVectorQuery("body-vector", bodyQueryVector.getEmbeddingsList(), 30);
+
+        // Keyword search on both title and body
+        String keywordQuery = "title:(" + queryText + ") OR body:(" + queryText + ")";
+
+        // Boosted query
+        SolrQuery solrBoostedQuery = new SolrQuery();
+        solrBoostedQuery.setQuery(keywordQuery);
+        solrBoostedQuery.set("defType", "edismax");
+        solrBoostedQuery.set("boost", titleVectorQuery);
+        solrBoostedQuery.setRows(30); // Ensure Solr returns 30 results
+
+        log.info("This is a keyword query that boosts based on the semantic response. It uses the boost field in eDisMax for now, but may want to do a bq instead.\n{}", solrBoostedQuery);
+
+        QueryResponse boostedQueryResponse;
+        try {
+            boostedQueryResponse = solrClient.query(DEFAULT_COLLECTION, solrBoostedQuery, SolrRequest.METHOD.POST);
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+            throw new RuntimeException(e);
+        }
+
+        // Validate the boosted query response
+        assertNotNull(boostedQueryResponse);
+
+        SolrDocumentList boostedDocuments = boostedQueryResponse.getResults();
+        assertEquals(30, boostedDocuments.size()); // Ensure that 30 documents are returned
+
+        // Log results for debugging purposes (optional)
+        log.info("Boosted Search Results:");
+        boostedDocuments.forEach(doc -> log.info("Doc ID: {}, Title: {}", doc.getFieldValue("id"), doc.getFieldValue("title")));
+
+        // Perform the keyword query without boost
+        SolrQuery solrKeywordQuery = new SolrQuery();
+        solrKeywordQuery.setQuery(keywordQuery);
+        solrKeywordQuery.set("defType", "edismax");
+        solrKeywordQuery.setRows(30); // Ensure Solr returns 30 results
+
+        QueryResponse keywordQueryResponse;
+        try {
+            keywordQueryResponse = solrClient.query(DEFAULT_COLLECTION, solrKeywordQuery, SolrRequest.METHOD.POST);
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+            throw new RuntimeException(e);
+        }
+
+        // Validate the keyword query response
+        assertNotNull(keywordQueryResponse);
+
+        SolrDocumentList keywordDocuments = keywordQueryResponse.getResults();
+        assertEquals(30, keywordDocuments.size()); // Ensure that 30 documents are returned
+
+        log.info("Keyword Search Results:");
+        keywordDocuments.forEach(doc -> log.info("Doc ID: {}, Title: {}", doc.getFieldValue("id"), doc.getFieldValue("title")));
+
+        // Assertion 1: The number of keyword results is equal to the number of boosted results.
+        assertEquals(keywordQueryResponse.getResults().getNumFound(), boostedQueryResponse.getResults().getNumFound());
+
+        // Assertion 2: The order of the documents are not the same between each search
+        boolean isOrderSame = true;
+        for (int i = 0; i < boostedDocuments.size(); i++) {
+            if (!boostedDocuments.get(i).getFieldValue("id").equals(keywordDocuments.get(i).getFieldValue("id"))) {
+                isOrderSame = false;
+                break;
+            }
+        }
+        assertFalse(isOrderSame, "The document order should not be the same between boosted and keyword searches.");
+
+        // Assertion 3: The first three docs from the boosted results have IDs 41565, 41291, and 41578
+        assertEquals("41565", boostedDocuments.get(0).getFieldValue("id"));
+        assertEquals("41291", boostedDocuments.get(1).getFieldValue("id"));
+        assertEquals("41578", boostedDocuments.get(2).getFieldValue("id"));
     }
 }
