@@ -1,6 +1,10 @@
 package com.krickert.search.api;
 
+import com.krickert.search.api.solr.ProtobufToSolrDocument;
+import com.krickert.search.api.solr.SolrHelper;
 import com.krickert.search.api.solr.SolrTest;
+import com.krickert.search.model.pipe.PipeDocument;
+import com.krickert.search.model.test.util.TestDataHelper;
 import com.krickert.search.service.EmbeddingServiceGrpc;
 import com.krickert.search.service.EmbeddingsVectorReply;
 import com.krickert.search.service.EmbeddingsVectorRequest;
@@ -12,6 +16,7 @@ import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.UpdateResponse;
 import org.apache.solr.common.SolrDocumentList;
@@ -23,11 +28,13 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.utility.DockerImageName;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.krickert.search.api.solr.SolrHelper.buildVectorQuery;
+import static org.junit.jupiter.api.Assertions.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @MicronautTest(environments = "test") // Ensure the correct environment is used
@@ -51,6 +58,9 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
 
     private static String vectorizerHost;
     private static Integer vectorizerPort;
+
+    @Inject
+    ProtobufToSolrDocument protobufToSolrDocument;
 
     @Inject
     ApplicationContext context;
@@ -270,20 +280,12 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
         assertNotNull(queryVectorReply);
         assertEquals(384, queryVectorReply.getEmbeddingsList().size());
 
-        // Create the dense vector query
-        StringBuilder vectorQueryBuilder = new StringBuilder();
-        vectorQueryBuilder.append("{!knn f=title-vector topK=10}[");
-        for (int i = 0; i < queryVectorReply.getEmbeddingsList().size(); i++) {
-            vectorQueryBuilder.append(queryVectorReply.getEmbeddingsList().get(i));
-            if (i < queryVectorReply.getEmbeddingsList().size() - 1) {
-                vectorQueryBuilder.append(",");
-            }
-        }
-        vectorQueryBuilder.append("]");
+        // Create the dense vector query using the utility function
+        String vectorQuery = buildVectorQuery("title-vector", queryVectorReply.getEmbeddingsList(), 10);
 
         // Execute the dense vector search
         SolrQuery solrQuery = new SolrQuery();
-        solrQuery.setQuery(vectorQueryBuilder.toString());
+        solrQuery.setQuery(vectorQuery);
         QueryResponse queryResponse = solrClient.query(DEFAULT_COLLECTION, solrQuery);
 
         // Validate the query response
@@ -292,6 +294,85 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
         assertEquals("Test Title 1", documents.get(0).getFieldValue("title")); // Assuming the closest match is returned first
     }
 
+    @Test
+    public void sampleWikiDocumentDenseVectorSearchTest() {
+        EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient = context.getBean(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
+        Collection<PipeDocument> docs = TestDataHelper.getFewHunderedPipeDocuments();
+        Collection<SolrInputDocument> solrDocs = new ArrayList<>();
 
+        for (PipeDocument doc : docs) {
+            SolrInputDocument inputDocument = protobufToSolrDocument.convertProtobufToSolrDocument(doc);
 
+            inputDocument.addField("title-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(doc.getTitle()).build()).getEmbeddingsList());
+            inputDocument.addField("body-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(doc.getBody()).build()).getEmbeddingsList());
+
+            solrDocs.add(inputDocument);
+        }
+
+        try {
+            UpdateResponse updateResponse1 = solrClient.add(DEFAULT_COLLECTION, solrDocs);
+            solrClient.commit(DEFAULT_COLLECTION);
+
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+        }
+
+        // The target query text for KNN search
+        String queryText = "maintaining computers in large organizations";
+
+        // Generate embeddings for the query text
+        EmbeddingsVectorReply titleQueryVector = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(queryText).build());
+        EmbeddingsVectorReply bodyQueryVector = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(queryText).build());
+
+        // Confirm that the embeddings are generated correctly
+        assertNotNull(titleQueryVector);
+        assertEquals(384, titleQueryVector.getEmbeddingsList().size());
+        assertNotNull(bodyQueryVector);
+        assertEquals(384, bodyQueryVector.getEmbeddingsList().size());
+
+        // Create vector queries using utility function
+        String titleVectorQuery = SolrHelper.buildVectorQuery("title-vector", titleQueryVector.getEmbeddingsList(), 30);
+        String bodyVectorQuery = SolrHelper.buildVectorQuery("body-vector", bodyQueryVector.getEmbeddingsList(), 30);
+
+        // Execute KNN search for title vector
+        SolrQuery solrTitleQuery = new SolrQuery();
+        solrTitleQuery.setQuery(titleVectorQuery);
+        solrTitleQuery.setRows(30); // Ensure Solr returns 30 results
+        QueryResponse titleQueryResponse = null;
+        try {
+            titleQueryResponse = solrClient.query(DEFAULT_COLLECTION, solrTitleQuery);
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+        }
+
+        // Execute KNN search for body vector
+        SolrQuery solrBodyQuery = new SolrQuery();
+        solrBodyQuery.setQuery(bodyVectorQuery);
+        solrBodyQuery.setRows(30); // Ensure Solr returns 30 results
+        QueryResponse bodyQueryResponse = null;
+        try {
+            bodyQueryResponse = solrClient.query(DEFAULT_COLLECTION, solrBodyQuery);
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+        }
+
+        // Validate the query responses
+        assertNotNull(titleQueryResponse);
+        assertNotNull(bodyQueryResponse);
+
+        SolrDocumentList titleDocuments = titleQueryResponse.getResults();
+        SolrDocumentList bodyDocuments = bodyQueryResponse.getResults();
+
+        assertEquals(30, titleDocuments.size()); // Ensure that 30 documents are returned
+        assertEquals(30, bodyDocuments.size()); // Ensure that 30 documents are returned
+
+        // Log results for debugging purposes (optional)
+        log.info("Title KNN Search Results:");
+        titleDocuments.forEach(doc -> log.info("Doc ID: {}, Title: {}", doc.getFieldValue("id"), doc.getFieldValue("title")));
+
+        log.info("Body KNN Search Results:");
+        bodyDocuments.forEach(doc -> log.info("Doc ID: {}, TItle: {}", doc.getFieldValue("id"), doc.getFieldValue("title")));
+
+        // Additional assertions can be added based on expected results
+    }
 }

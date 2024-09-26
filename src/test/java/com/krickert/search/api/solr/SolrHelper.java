@@ -6,7 +6,9 @@ import org.apache.solr.client.solrj.request.schema.SchemaRequest;
 import org.apache.solr.client.solrj.response.schema.SchemaResponse;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class SolrHelper {
 
@@ -45,5 +47,21 @@ public class SolrHelper {
         if (response.getStatus() != 0) {
             throw new RuntimeException("Failed to add vector field type: " + response.getStatus() + ", " + response.getResponse());
         }
+    }
+
+    /**
+     * Builds a vector query string for Solr using the provided field and vector embeddings.
+     *
+     * @param field The Solr field to search against.
+     * @param embeddings The vector embeddings.
+     * @param topK The number of top results to fetch.
+     * @return The vector query string.
+     */
+    public static String buildVectorQuery(String field, List<Float> embeddings, int topK) {
+        String vectorString = embeddings.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+
+        return String.format("{!knn f=%s topK=%d}[%s]", field, topK, vectorString);
     }
 }

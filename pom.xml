@@ -212,6 +212,10 @@
             <artifactId>solr</artifactId>
             <version>1.20.1</version>
         </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

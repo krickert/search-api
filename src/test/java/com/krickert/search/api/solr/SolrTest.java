@@ -68,7 +68,7 @@ public abstract class SolrTest {
         log.info("Creating temporary collection: {}", DEFAULT_COLLECTION);
         // Define schema for the collection
         addField("title", "string", false);
-        addField("body", "string", false);
+        addField("body", "text_general", false);
         SolrHelper.addDenseVectorField(solrClient, "documents", "title-vector", 384);
         SolrHelper.addDenseVectorField(solrClient, "documents", "body-vector", 384);
 
