@@ -15,6 +15,7 @@ import io.micronaut.grpc.annotation.GrpcChannel;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -33,6 +34,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.krickert.search.api.solr.SolrHelper.buildVectorQuery;
 import static org.junit.jupiter.api.Assertions.*;
@@ -488,5 +493,101 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
         assertEquals("41578", boostedDocuments.get(2).getFieldValue("id"));
     }
 
+
+    @Test
+    public void sampleWikiDocumentsChunkDocumentJoinDenseVectorSearchTest() {
+        EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient = context.getBean(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
+        Collection<PipeDocument> docs = TestDataHelper.getFewHunderedPipeDocuments();
+        Collection<SolrInputDocument> solrDocs = new ArrayList<>();
+
+        for (PipeDocument pipeDocument : docs) {
+            SolrInputDocument inputDocument = protobufToSolrDocument.convertProtobufToSolrDocument(pipeDocument);
+
+            inputDocument.addField("title-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(pipeDocument.getTitle()).build()).getEmbeddingsList());
+            inputDocument.addField("body-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(pipeDocument.getBody()).build()).getEmbeddingsList());
+
+            solrDocs.add(inputDocument);
+            if (inputDocument.containsKey("body_paragraphs")) {
+                String parentId = (String)inputDocument.getFieldValue("id");
+                Collection<Object> paragraphsObj = inputDocument.getFieldValues("body_paragraphs");
+                List<String> paragraphs = paragraphsObj.stream()
+                        .map(Object::toString)
+                        .toList();
+                log.info("There are {} chunks for document id {}", paragraphs.size(), parentId);
+                Collection<SolrInputDocument> chunkDocuments = new ArrayList<>(paragraphs.size());
+                // AtomicInteger to maintain order
+                IntStream.range(0, paragraphs.size()).forEach(chunkNumber -> {
+                    Object paragraph = paragraphs.get(chunkNumber);
+                    log.info("Creating embedding of size {} for docId {}", paragraph.toString().length(), parentId);
+                    String docId = parentId + "#" + StringUtils.leftPad("" + chunkNumber, 10, '0');
+                    SolrInputDocument chunkDocument = new SolrInputDocument();
+                    chunkDocument.addField("id", docId);
+                    chunkDocument.addField("title", docId);
+                    chunkDocument.addField("chunk", paragraph);
+                    chunkDocument.addField("parent-id", parentId);
+                    chunkDocument.addField("chunk-number", chunkNumber);
+                    chunkDocument.addField("chunk-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(paragraph.toString()).build()).getEmbeddingsList());
+                    chunkDocuments.add(chunkDocument);
+                });
+
+                try {
+                    solrClient.add(VECTOR_COLLECTION, chunkDocuments);
+                } catch (SolrServerException | IOException e) {
+                    log.error("Didn't add {} docs: {} due to error", chunkDocuments.size(), chunkDocuments.stream()
+                            .map(doc -> ((String)doc.getFieldValue("id"))).collect(Collectors.joining(", ")), e);
+                }
+
+            }
+        }
+
+        try {
+            solrClient.add(DEFAULT_COLLECTION, solrDocs);
+            solrClient.commit(DEFAULT_COLLECTION);
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+        }
+
+        // The target query text for KNN search
+        String queryText = "maintaining computers in large organizations";
+
+        // Generate embeddings for the query text
+        EmbeddingsVectorReply queryVector = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(queryText).build());
+
+        // Confirm that the embeddings are generated correctly
+        assertNotNull(queryVector);
+        assertEquals(384, queryVector.getEmbeddingsList().size());
+
+        // Create vector queries using a utility function
+        String vectorQuery = SolrHelper.buildVectorQuery("chunk-vector", queryVector.getEmbeddingsList(), 100);
+
+        String fullQuery = "{!join from=parent-id to=id fromIndex=vector-documents}" + vectorQuery;
+
+        // Boosted query
+        SolrQuery solrBoostedQuery = new SolrQuery();
+         solrBoostedQuery.setQuery(fullQuery);
+        solrBoostedQuery.setRows(30); // Ensure Solr returns 30 results
+
+        log.info("This is a keyword query that boosts based on the semantic response. It uses the boost field in eDisMax for now, but may want to do a bq instead.\n{}", solrBoostedQuery);
+
+        QueryResponse boostedQueryResponse;
+        try {
+            boostedQueryResponse = solrClient.query(DEFAULT_COLLECTION, solrBoostedQuery, SolrRequest.METHOD.POST);
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+            throw new RuntimeException(e);
+        }
+
+        // Validate the boosted query response
+        assertNotNull(boostedQueryResponse);
+
+        SolrDocumentList boostedDocuments = boostedQueryResponse.getResults();
+        assertEquals(30, boostedDocuments.size()); // Ensure that 30 documents are returned
+
+        // Log results for debugging purposes (optional)
+        log.info("Boosted Search Results:");
+        boostedDocuments.forEach(doc -> log.info("Doc ID: {}, Title: {}", doc.getFieldValue("id"), doc.getFieldValue("title")));
+
+        log.info("success");
+    }
 
 }

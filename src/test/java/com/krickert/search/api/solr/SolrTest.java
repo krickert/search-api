@@ -58,6 +58,7 @@ public abstract class SolrTest {
 
     @BeforeEach
     public void beforeEach() throws Exception {
+        log.info("on before each");
         // Create collection before each test
         CollectionAdminRequest.Create createCollection = CollectionAdminRequest.createCollection("documents", 1, 1);
         createCollection.process(solrClient);
@@ -68,17 +69,24 @@ public abstract class SolrTest {
         addField(solrClient,"body_paragraphs", "text_general", true, DEFAULT_COLLECTION);
         SolrHelper.addDenseVectorField(solrClient, DEFAULT_COLLECTION, "title-vector", 384);
         SolrHelper.addDenseVectorField(solrClient, DEFAULT_COLLECTION, "body-vector", 384);
+        log.info("Creating temporary vector collection: {}", VECTOR_COLLECTION);
         CollectionAdminRequest.Create createVectorCollection = CollectionAdminRequest.createCollection(VECTOR_COLLECTION, 1, 1);
         createVectorCollection.process(solrClient);
         addField(solrClient, "parent-id", "string", false, VECTOR_COLLECTION);
         addField(solrClient,"chunk-number", "pint", false, VECTOR_COLLECTION);
+        addField(solrClient, "chunk", "text_general", false, VECTOR_COLLECTION);
+        SolrHelper.addDenseVectorField(solrClient, VECTOR_COLLECTION, "chunk-vector", 384);
+
     }
 
     @AfterEach
     public void afterEach() throws Exception {
+        log.info("on after each");
         // Delete collection after each test
+        log.info("Deleting temporary collection: {}", DEFAULT_COLLECTION);
         CollectionAdminRequest.Delete deleteCollection = CollectionAdminRequest.deleteCollection(DEFAULT_COLLECTION);
         deleteCollection.process(solrClient);
+        log.info("Deleting temporary vector collection: {}", VECTOR_COLLECTION);
         CollectionAdminRequest.Delete deleteVectorCollection = CollectionAdminRequest.deleteCollection(VECTOR_COLLECTION);
         deleteVectorCollection.process(solrClient);
     }
