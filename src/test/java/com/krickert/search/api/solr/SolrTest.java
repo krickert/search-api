@@ -13,6 +13,8 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+
+import static com.krickert.search.api.solr.SolrHelper.addDenseVectorField;
 import static com.krickert.search.api.solr.SolrHelper.addField;
 
 @Testcontainers
@@ -37,15 +39,17 @@ public abstract class SolrTest {
         }
     };
 
-    protected static SolrClient solrClient;
+    protected static Http2SolrClient solrClient;
+    protected static String solrBaseUrl = null;
 
     @BeforeAll
     public void setUp() throws Exception {
         solrContainer.start();
         log.info("Solr running on {}:{}", solrContainer.getHost(), solrContainer.getMappedPort(8983));
 
-        String solrBaseUrl = "http://" + solrContainer.getHost() + ":" + solrContainer.getMappedPort(8983) + "/solr";
+        solrBaseUrl = "http://" + solrContainer.getHost() + ":" + solrContainer.getMappedPort(8983) + "/solr";
         solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        log.info("Solr client can be accessed at {}", solrBaseUrl);
     }
 
     @AfterAll
@@ -58,24 +62,30 @@ public abstract class SolrTest {
 
     @BeforeEach
     public void beforeEach() throws Exception {
-        log.info("on before each");
+        log.info("Setting up test.\n\nSolr client can be accessed at {}\n\n\n", solrBaseUrl);
         // Create collection before each test
         CollectionAdminRequest.Create createCollection = CollectionAdminRequest.createCollection("documents", 1, 1);
         createCollection.process(solrClient);
         log.info("Creating temporary collection: {}", DEFAULT_COLLECTION);
         // Define schema for the collection
-        addField(solrClient,"title", "string", false, DEFAULT_COLLECTION);
+        addField(solrClient,"title", "text_general", false, DEFAULT_COLLECTION);
         addField(solrClient,"body", "text_general", false, DEFAULT_COLLECTION);
         addField(solrClient,"body_paragraphs", "text_general", true, DEFAULT_COLLECTION);
-        SolrHelper.addDenseVectorField(solrClient, DEFAULT_COLLECTION, "title-vector", 384);
-        SolrHelper.addDenseVectorField(solrClient, DEFAULT_COLLECTION, "body-vector", 384);
+        addField(solrClient,"chunk-number", "pint", false, DEFAULT_COLLECTION);
+        addField(solrClient, "chunk", "text_general", false, DEFAULT_COLLECTION);
+        addField(solrClient, "parent-id", "string", false, DEFAULT_COLLECTION);
+        addField(solrClient, "_nest_parent_", "string", false, DEFAULT_COLLECTION);
+        addField(solrClient, "type", "string", false, DEFAULT_COLLECTION);
+        addDenseVectorField(solrClient, "chunk-vector", 384, DEFAULT_COLLECTION);
+        addDenseVectorField(solrClient, "title-vector", 384, DEFAULT_COLLECTION);
+        addDenseVectorField(solrClient, "body-vector", 384, DEFAULT_COLLECTION);
         log.info("Creating temporary vector collection: {}", VECTOR_COLLECTION);
         CollectionAdminRequest.Create createVectorCollection = CollectionAdminRequest.createCollection(VECTOR_COLLECTION, 1, 1);
         createVectorCollection.process(solrClient);
         addField(solrClient, "parent-id", "string", false, VECTOR_COLLECTION);
         addField(solrClient,"chunk-number", "pint", false, VECTOR_COLLECTION);
         addField(solrClient, "chunk", "text_general", false, VECTOR_COLLECTION);
-        SolrHelper.addDenseVectorField(solrClient, VECTOR_COLLECTION, "chunk-vector", 384);
+        addDenseVectorField(solrClient, "chunk-vector", 384, VECTOR_COLLECTION);
 
     }
 

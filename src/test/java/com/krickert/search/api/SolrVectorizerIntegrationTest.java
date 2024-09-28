@@ -19,6 +19,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.ConcurrentUpdateHttp2SolrClient;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.UpdateResponse;
 import org.apache.solr.common.SolrDocumentList;
@@ -35,6 +36,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -564,6 +569,105 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
         // Boosted query
         SolrQuery solrBoostedQuery = new SolrQuery();
          solrBoostedQuery.setQuery(fullQuery);
+        solrBoostedQuery.setRows(30); // Ensure Solr returns 30 results
+
+        log.info("This is a keyword query that boosts based on the semantic response. It uses the boost field in eDisMax for now, but may want to do a bq instead.\n{}", solrBoostedQuery);
+
+        QueryResponse boostedQueryResponse;
+        try {
+            boostedQueryResponse = solrClient.query(DEFAULT_COLLECTION, solrBoostedQuery, SolrRequest.METHOD.POST);
+        } catch (SolrServerException | IOException e) {
+            fail(e);
+            throw new RuntimeException(e);
+        }
+
+        // Validate the boosted query response
+        assertNotNull(boostedQueryResponse);
+
+        SolrDocumentList boostedDocuments = boostedQueryResponse.getResults();
+        assertEquals(30, boostedDocuments.size()); // Ensure that 30 documents are returned
+
+        // Log results for debugging purposes (optional)
+        log.info("Boosted Search Results:");
+        boostedDocuments.forEach(doc -> log.info("Doc ID: {}, Title: {}", doc.getFieldValue("id"), doc.getFieldValue("title")));
+
+        log.info("success");
+    }
+
+    @Test
+    public void sampleWikiDocumentsChunkDocumentEmbeddedDocDenseVectorSearchTest() {
+        EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient = context.getBean(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
+        Collection<PipeDocument> docs = TestDataHelper.getFewHunderedPipeDocuments();
+        // Use ForkJoinPool for parallel streaming
+        ForkJoinPool customThreadPool = new ForkJoinPool(8);
+
+
+        try (ConcurrentUpdateHttp2SolrClient concurrentUpdateHttp2SolrClient = new ConcurrentUpdateHttp2SolrClient.Builder(solrBaseUrl, solrClient).build()) {
+            customThreadPool.submit(() ->
+                    docs.parallelStream().forEach(pipeDocument -> {
+                        SolrInputDocument inputDocument = protobufToSolrDocument.convertProtobufToSolrDocument(pipeDocument);
+
+                        inputDocument.addField("title-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(pipeDocument.getTitle()).build()).getEmbeddingsList());
+                        inputDocument.addField("body-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(pipeDocument.getBody()).build()).getEmbeddingsList());
+                        inputDocument.addField("type", "parent");
+
+                        if (inputDocument.containsKey("body_paragraphs")) {
+                            String parentId = (String) inputDocument.getFieldValue("id");
+                            Collection<Object> paragraphsObj = inputDocument.getFieldValues("body_paragraphs");
+                            List<String> paragraphs = paragraphsObj.stream().map(Object::toString).toList();
+                            log.info("There are {} chunks for document id {}", paragraphs.size(), parentId);
+                            List<SolrInputDocument> chunkDocs = new ArrayList<>(paragraphs.size());
+
+                            for (int chunkNumber = 0; chunkNumber < paragraphs.size(); chunkNumber++) {
+                                String paragraph = paragraphs.get(chunkNumber);
+                                log.debug("Creating embedding of size {} for docId {}", paragraph.length(), parentId);
+                                String docId = parentId + "#" + StringUtils.leftPad("" + chunkNumber, 10, '0');
+
+                                SolrInputDocument chunkDocument = new SolrInputDocument();
+                                chunkDocument.addField("id", docId);
+                                chunkDocument.addField("chunk", paragraph);
+                                chunkDocument.addField("chunk-number", chunkNumber);
+                                chunkDocument.addField("chunk-vector", gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(paragraph).build()).getEmbeddingsList());
+                                chunkDocument.addField("type", "child");
+                                chunkDocs.add(chunkDocument);
+                            }
+                            inputDocument.addField("chunks", chunkDocs);
+                        }
+
+                        try {
+                            concurrentUpdateHttp2SolrClient.add(DEFAULT_COLLECTION, inputDocument);
+                        } catch (SolrServerException | IOException e) {
+                            log.error("Error adding documents to Solr for document id {}: {}", inputDocument.getFieldValue("id"), e.getMessage(), e);
+                            fail(e);
+                        }
+                    })
+            ).get();  // wait for completion
+        } catch (ExecutionException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        // The target query text for KNN search
+        String queryText = "maintaining computers in large organizations";
+
+        // Generate embeddings for the query text
+        EmbeddingsVectorReply queryVector = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(queryText).build());
+
+        // Confirm that the embeddings are generated correctly
+        assertNotNull(queryVector);
+        assertEquals(384, queryVector.getEmbeddingsList().size());
+
+        // Create vector queries using a utility function
+        String vectorQuery = SolrHelper.buildVectorQuery("chunk-vector", queryVector.getEmbeddingsList(), 100);
+
+
+
+
+        // Boosted query
+        SolrQuery solrBoostedQuery = new SolrQuery();
+        solrBoostedQuery.setQuery("*:*");
+        solrBoostedQuery.set("defType", "edismax");
+        solrBoostedQuery.addFilterQuery("{!parent which=type:parent}");// only return the parent docs, not the child docs
+        solrBoostedQuery.set("bq", vectorQuery);
         solrBoostedQuery.setRows(30); // Ensure Solr returns 30 results
 
         log.info("This is a keyword query that boosts based on the semantic response. It uses the boost field in eDisMax for now, but may want to do a bq instead.\n{}", solrBoostedQuery);

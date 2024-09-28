@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class SolrHelper {
 
-    public static void addDenseVectorField(SolrClient solrClient, String collectionName, String fieldName, int dimensions) throws Exception {
+    public static void addDenseVectorField(SolrClient solrClient, String fieldName, int dimensions, String collectionName) throws Exception {
         String fieldTypeName = fieldName + dimensions;
 
         addVectorFieldType(solrClient, collectionName, fieldTypeName, dimensions);
@@ -69,9 +69,15 @@ public class SolrHelper {
     }
 
     public static void addField(SolrClient solrClient, String name, String type, boolean multiValued, String collection) throws Exception {
+        addField(solrClient, name, type, multiValued, true, true, collection);
+    }
+
+    public static void addField(SolrClient solrClient, String name, String type, boolean multiValued, boolean indexed, boolean stored, String collection) throws Exception {
         Map<String, Object> fieldAttributes = new HashMap<>();
         fieldAttributes.put("name", name);
         fieldAttributes.put("type", type);
+        fieldAttributes.put("indexed", indexed);
+        fieldAttributes.put("stored", stored);
         fieldAttributes.put("multiValued", multiValued);
 
         SchemaRequest.AddField addFieldUpdate = new SchemaRequest.AddField(fieldAttributes);

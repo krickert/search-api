@@ -1,8 +1,9 @@
-package com.krickert.search.api.solr;
+package com.krickert.search.api.grpc;
 
 import com.google.protobuf.Timestamp;
 import com.krickert.search.api.*;
 import com.krickert.search.api.config.SearchApiConfig;
+import com.krickert.search.api.solr.SolrService;
 import io.grpc.stub.StreamObserver;
 import io.micronaut.grpc.annotation.GrpcService;
 import jakarta.inject.Inject;

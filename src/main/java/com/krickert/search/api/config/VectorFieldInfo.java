@@ -20,8 +20,8 @@ public class VectorFieldInfo {
     @JsonProperty("vector-field-name")
     private String vectorFieldName;
 
-    @JsonProperty("chunk-field")
-    private boolean chunkField;
+    @JsonProperty("vector-field-type")
+    private VectorFieldType vectorFieldType;
 
     @JsonProperty("chunk-collection")
     private String chunkCollection;
@@ -29,8 +29,15 @@ public class VectorFieldInfo {
     @JsonProperty("vector-grpc-service")
     private String vectorGrpcService;
 
-
     // Getters and Setters
+
+    public Integer getK() {
+        return k;
+    }
+
+    public void setK(Integer k) {
+        this.k = k;
+    }
 
     public String getFieldName() {
         return fieldName;
@@ -48,12 +55,12 @@ public class VectorFieldInfo {
         this.vectorFieldName = vectorFieldName;
     }
 
-    public boolean isChunkField() {
-        return chunkField;
+    public VectorFieldType getVectorFieldType() {
+        return vectorFieldType;
     }
 
-    public void setChunkField(boolean chunkField) {
-        this.chunkField = chunkField;
+    public void setVectorFieldType(VectorFieldType vectorFieldType) {
+        this.vectorFieldType = vectorFieldType;
     }
 
     public String getChunkCollection() {
@@ -70,13 +77,5 @@ public class VectorFieldInfo {
 
     public void setVectorGrpcService(String vectorGrpcService) {
         this.vectorGrpcService = vectorGrpcService;
-    }
-
-    public Integer getK() {
-        return k;
-    }
-
-    public void setK(Integer k) {
-        this.k = k;
     }
 }
