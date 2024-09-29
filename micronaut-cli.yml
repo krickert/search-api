@@ -1,0 +1,6 @@
+applicationType: default
+defaultPackage: com.krickert.search.api
+testFramework: junit
+sourceLanguage: java
+buildTool: maven
+features: [ annotation-api, app-name, assertj, awaitility, github-workflow-ci, hamcrest, http-client-test, jackson-databind, java, java-application, jib, junit, logback, management, maven, maven-enforcer-plugin, micronaut-aot, micronaut-http-validation, mockito, netty-server, openapi, readme, retry, security-annotations, security-jwt, shade, static-resources, swagger-ui, test-resources, testcontainers, validation, yaml, yaml-build ]
