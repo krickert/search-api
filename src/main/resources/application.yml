@@ -24,6 +24,7 @@ grpc:
     plaintext: true
     max-retry-attempts: 10
 search-api:
+  vector-grpc-channel: http://localhost:50401
   solr:
     url: http://localhost:8983/solr
     authentication:

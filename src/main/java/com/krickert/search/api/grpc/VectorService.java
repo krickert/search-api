@@ -4,7 +4,6 @@ import com.krickert.search.api.config.VectorFieldInfo;
 import com.krickert.search.service.EmbeddingServiceGrpc;
 import com.krickert.search.service.EmbeddingsVectorReply;
 import com.krickert.search.service.EmbeddingsVectorRequest;
-import io.micronaut.grpc.annotation.GrpcChannel;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -17,7 +16,7 @@ public class VectorService {
     private final EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient;
 
     @Inject
-    public VectorService(@GrpcChannel("vectorizer") EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient) {
+    public VectorService(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient) {
         this.embeddingClient = embeddingClient;
     }
 
@@ -49,22 +48,17 @@ public class VectorService {
      * @return The Solr vector query.
      */
     public String buildVectorQueryForEmbedding(VectorFieldInfo vectorFieldInfo, List<Float> embedding, int topK) {
-        switch (vectorFieldInfo.getVectorFieldType()) {
-            case INLINE:
+        return switch (vectorFieldInfo.getVectorFieldType()) {
+            case INLINE ->
                 // Inline vector query
-                return buildVectorQuery(vectorFieldInfo.getVectorFieldName(), embedding, topK);
-
-            case EMBEDDED_DOC:
+                    buildVectorQuery(vectorFieldInfo.getVectorFieldName(), embedding, topK);
+            case EMBEDDED_DOC ->
                 // Embedded document vector query
-                return buildEmbeddedDocJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), embedding, topK);
-
-            case CHILD_COLLECTION:
+                    buildEmbeddedDocJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), embedding, topK);
+            case CHILD_COLLECTION ->
                 // Child collection vector query
-                return buildExternalCollectionJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), vectorFieldInfo.getChunkCollection(), embedding, topK);
-
-            default:
-                throw new UnsupportedOperationException("Unsupported vector field type: " + vectorFieldInfo.getVectorFieldType());
-        }
+                    buildExternalCollectionJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), vectorFieldInfo.getChunkCollection(), embedding, topK);
+        };
     }
 
     /**
