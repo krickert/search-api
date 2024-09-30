@@ -23,8 +23,6 @@ grpc:
   client:
     plaintext: true
     max-retry-attempts: 10
-
-
 search-api:
   solr:
     url: http://localhost:8983/solr
@@ -36,12 +34,29 @@ search-api:
       issuer: https://my-token-url.com/oauth2/some-token/v1/token
       issuerAuthId: issuer-auth-id
       subject: your-subject
-      scope: solr # scope requested for oauth
-      require-dpop: true # true if we are to include dpop proof to the server
+      scope: solr
+      require-dpop: true
       proxy-settings:
         enabled: true
         host: localhost
         port: 8080
+    grpc-timeout: 5000 # Timeout for gRPC calls in milliseconds
+    default-search:
+      rows: 30
+      sort: "score desc"
+    query-parsing:
+      enabled: true
+      default-query-type: semantic
+      parse-boosted-queries: true
+    caching:
+      enabled: true
+      ttl: 300
+    error-handling:
+      log-level: error
+      retry-attempts: 3
+    vector-configuration:
+      default-dimensions: 384
+      algorithm: "cosine"
     collection-config:
       collection-name: documents
       keyword-query-fields:
@@ -49,19 +64,16 @@ search-api:
         - title
         - keyword
       vector-fields:
-        body:
+        bodyVectorField:
           field-name: body
           vector-field-name: body-vector
-          chunk-field: true
+          vector-field-type: embedded-doc
           chunk-collection: body-vector
           vector-grpc-service: http://localhost:50401/vectorizer
           k: 10
-        title:
+        titleVectorField:
           field-name: title
           vector-field-name: title-vector
-          chunk-field: false
+          vector-field-type: inline
           vector-grpc-service: http://localhost:50401/vectorizer
           k: 10
-
-
-
