@@ -14,6 +14,7 @@ import io.micronaut.context.env.PropertySource;
 import io.micronaut.grpc.annotation.GrpcChannel;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.client.solrj.SolrQuery;
@@ -52,14 +53,6 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
 
     private static final Logger log = LoggerFactory.getLogger(SolrVectorizerIntegrationTest.class);
 
-    @Singleton
-    EmbeddingServiceGrpc.EmbeddingServiceBlockingStub reactiveStub(
-            @GrpcChannel("https://localhost:${solr-test.vectorizer-mapped-port}")
-            ManagedChannel channel) {
-        return EmbeddingServiceGrpc.newBlockingStub(
-                channel
-        );
-    }
 
     @SuppressWarnings("resource")
     @Container
@@ -91,6 +84,12 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
         context.getEnvironment().addPropertySource(PropertySource.of(
                 "test",
                 Collections.singletonMap("solr-test.vectorizer-mapped-port", vectorizerPort)
+        ));
+
+        // Set the dynamic port property in the application context
+        context.getEnvironment().addPropertySource(PropertySource.of(
+                "test",
+                Collections.singletonMap("search-api.vector-grpc-channel", "http://localhost:" + vectorizerPort)
         ));
 
         // Logging for debugging

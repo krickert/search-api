@@ -12,6 +12,9 @@ public class SearchApiConfig {
     @JsonProperty("solr")
     private SolrConfig solr;
 
+    @JsonProperty("vector-grpc-channel")
+    private String vectorGrpcChannel;
+
     public SolrConfig getSolr() {
         return solr;
     }
@@ -20,6 +23,13 @@ public class SearchApiConfig {
         this.solr = solr;
     }
 
+    public String getVectorGrpcChannel() {
+        return vectorGrpcChannel;
+    }
+
+    public void setVectorGrpcChannel(String vectorGrpcChannel) {
+        this.vectorGrpcChannel = vectorGrpcChannel;
+    }
     @ConfigurationProperties("solr")
     @Introspected
     public static class SolrConfig {

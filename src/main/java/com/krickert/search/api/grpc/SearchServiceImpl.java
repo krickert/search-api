@@ -6,14 +6,19 @@ import com.krickert.search.api.config.CollectionConfig;
 import com.krickert.search.api.config.SearchApiConfig;
 import com.krickert.search.api.config.VectorFieldInfo;
 import com.krickert.search.api.solr.SolrService;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.micronaut.grpc.annotation.GrpcService;
 import jakarta.inject.Inject;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.FacetField;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.params.HighlightParams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +27,7 @@ import java.util.stream.Collectors;
 
 @GrpcService
 public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
+    private static final Logger log = LoggerFactory.getLogger(SearchServiceImpl.class);
 
     private final SolrService solrService;
     private final VectorService vectorService;
@@ -49,8 +55,15 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             // Send response
             responseObserver.onNext(searchResponse);
             responseObserver.onCompleted();
+        } catch (SolrServerException e) {
+            log.error("SolrServerException during search operation: {}", e.getMessage(), e);
+            responseObserver.onError(Status.INTERNAL.withDescription("SolrServerException: " + e.getMessage()).withCause(e).asRuntimeException());
+        } catch (IOException e) {
+            log.error("IOException during search operation: {}", e.getMessage(), e);
+            responseObserver.onError(Status.INTERNAL.withDescription("IOException: " + e.getMessage()).withCause(e).asRuntimeException());
         } catch (Exception e) {
-            responseObserver.onError(e);
+            log.error("Unexpected error during search operation: {}", e.getMessage(), e);
+            responseObserver.onError(Status.UNKNOWN.withDescription("Unexpected error: " + e.getMessage()).withCause(e).asRuntimeException());
         }
     }
 
@@ -84,7 +97,6 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             // Default sorting by score desc
             params.put("sort", "score desc");
         }
-
 
         // Facets
         addFacetFields(request, params);
@@ -141,7 +153,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             // Retrieve the embedding for the query text
             List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
 
-            Map<String, VectorFieldInfo> vectorFields = collectionConfig.getVectorFields();
+            Map<String, VectorFieldInfo> vectorFields = collectionConfig.getVectorFieldsByName();
             // Loop over vector fields to apply boosts
             String boostQueries = vectorFields.values().stream()
                     .map(vectorFieldInfo -> {
@@ -154,33 +166,52 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
     }
 
     private void addSemanticParams(SemanticOptions semanticOptions, SearchRequest request, Map<String, String> params) {
-        Map<String, VectorFieldInfo> vectorFieldInfoMap = collectionConfig.getVectorFields();
+        Map<String, VectorFieldInfo> vectorFieldInfoMap = collectionConfig.getVectorFieldsByName();
+
+        // Log the requested vector fields
+        log.info("Requested vector fields for semantic search: {}", semanticOptions.getVectorFieldsList());
 
         // Retrieve the embedding for the query text
         List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
+        log.debug("Retrieved query embedding: {}", queryEmbedding);
 
         int topK = semanticOptions.getTopK() != 0 ? semanticOptions.getTopK() : 10;  // Default to 10 if not specified
+        log.debug("Using topK: {}", topK);
 
         // Determine which vector fields to use
         List<VectorFieldInfo> vectorFieldsToUse;
         if (semanticOptions.getVectorFieldsList().isEmpty()) {
             // Use all vector fields
             vectorFieldsToUse = new ArrayList<>(vectorFieldInfoMap.values());
+            log.info("No vector fields specified. Using all configured vector fields.");
         } else {
             // Use specified vector fields
             vectorFieldsToUse = semanticOptions.getVectorFieldsList().stream()
-                    .map(vectorFieldInfoMap::get)
+                    .map(fieldName -> {
+                        VectorFieldInfo info = vectorFieldInfoMap.get(fieldName);
+                        if (info == null) {
+                            log.error("VectorFieldInfo not found for field: {}", fieldName);
+                            throw new IllegalArgumentException("Vector field not found: " + fieldName);
+                        }
+                        return info;
+                    })
                     .collect(Collectors.toList());
+            log.info("Using specified vector fields: {}", semanticOptions.getVectorFieldsList());
         }
+
+        // Log the mapped VectorFieldInfo objects
+        log.info("Mapped VectorFieldInfo objects: {}", vectorFieldsToUse);
 
         // Build queries for each vector field
         String combinedQuery = vectorFieldsToUse.stream()
                 .map(vectorFieldInfo -> {
                     String vectorQuery = vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, topK);
+                    log.debug("Built vector query for field '{}': {}", vectorFieldInfo.getVectorFieldName(), vectorQuery);
                     return vectorQuery;
                 })
                 .collect(Collectors.joining(" OR "));
 
+        log.debug("Combined vector query: {}", combinedQuery);
         params.put("q", combinedQuery);
 
         // Handle similarity options (if present)
@@ -188,21 +219,28 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
 
         if (similarity.hasMinReturn()) {
             params.put("minReturn", String.valueOf(similarity.getMinReturn()));
+            log.debug("Set minReturn to {}", similarity.getMinReturn());
         } else {
             // Default minReturn value
             params.put("minReturn", "1");
+            log.debug("Set default minReturn to 1");
         }
 
         if (similarity.hasMinTraverse()) {
             params.put("minTraverse", String.valueOf(similarity.getMinTraverse()));
+            log.debug("Set minTraverse to {}", similarity.getMinTraverse());
         } else {
             // Default minTraverse value
             params.put("minTraverse", "-Infinity");
+            log.debug("Set default minTraverse to -Infinity");
         }
 
         // Pre-filters
-        similarity.getPreFilterList().forEach(filter -> params.put("fq", filter.getField() + ":" + filter.getValue()));
-
+        similarity.getPreFilterList().forEach(filter -> {
+            String fq = filter.getField() + ":" + filter.getValue();
+            params.put("fq", fq);
+            log.debug("Added pre-filter: {}", fq);
+        });
     }
 
     private SearchResponse parseSolrResponse(QueryResponse solrResponse, SearchRequest request) {
@@ -219,7 +257,6 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
                     resultBuilder.putFields(field, doc.getFieldValue(field).toString());
                 }
             }
-
 
             // Add matched snippets (semantic or keyword)
             if (request.getStrategy().hasSemantic()) {
@@ -297,5 +334,4 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             }
         });
     }
-
 }

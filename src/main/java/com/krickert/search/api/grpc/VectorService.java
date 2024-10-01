@@ -48,6 +48,10 @@ public class VectorService {
      * @return The Solr vector query.
      */
     public String buildVectorQueryForEmbedding(VectorFieldInfo vectorFieldInfo, List<Float> embedding, int topK) {
+        if (vectorFieldInfo == null) {
+            throw new IllegalArgumentException("VectorFieldInfo cannot be null");
+        }
+
         return switch (vectorFieldInfo.getVectorFieldType()) {
             case INLINE ->
                 // Inline vector query

@@ -3,10 +3,13 @@ package com.krickert.search.api.config;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.micronaut.context.annotation.ConfigurationProperties;
 import io.micronaut.core.annotation.Introspected;
+import jakarta.inject.Singleton;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Singleton
 @ConfigurationProperties("search-api.solr.collection-config")
 @Introspected
 public class CollectionConfig {
@@ -41,5 +44,21 @@ public class CollectionConfig {
 
     public Map<String, VectorFieldInfo> getVectorFields() {
         return vectorFields;
+    }
+
+    /**
+     * Creates a reverse map from vector-field-name to VectorFieldInfo.
+     *
+     * @return Map where key is vector-field-name and value is VectorFieldInfo
+     */
+    public Map<String, VectorFieldInfo> getVectorFieldsByName() {
+        Map<String, VectorFieldInfo> reverseMap = new HashMap<>();
+        if (vectorFields != null) {
+            for (Map.Entry<String, VectorFieldInfo> entry : vectorFields.entrySet()) {
+                String vectorFieldName = entry.getValue().getVectorFieldName();
+                reverseMap.put(vectorFieldName, entry.getValue());
+            }
+        }
+        return reverseMap;
     }
 }
