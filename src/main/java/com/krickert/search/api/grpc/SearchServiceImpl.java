@@ -12,8 +12,8 @@ import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.grpc.annotation.GrpcService;
 import jakarta.inject.Inject;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.response.FacetField;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.client.solrj.response.RangeFacet;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.params.HighlightParams;
 import org.slf4j.Logger;
@@ -127,10 +127,8 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             params.put("sort", Collections.singletonList(searchApiConfig.getSolr().getDefaultSearch().getSort()));
         }
 
-        // Handle facets
-        addFacetFields(request, params);
-        addFacetRanges(request, params);
-        addFacetQueries(request, params);
+        // Handle unified facets
+        addUnifiedFacets(request, params);
 
         // Handle additional parameters
         if (request.hasAdditionalParams()) {
@@ -202,70 +200,66 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
     }
 
     /**
-     * Adds facet fields to the Solr query parameters.
+     * Adds unified facet requests to the Solr query parameters.
      *
      * @param request The SearchRequest from the client.
      * @param params  The current Solr query parameters.
      */
-    private void addFacetFields(SearchRequest request, Map<String, List<String>> params) {
-        for (com.krickert.search.api.FacetField facetField : request.getFacetFieldsList()) {
-            params.computeIfAbsent("facet.field", k -> new ArrayList<>()).add(facetField.getField());
-            if (facetField.hasLimit()) {
-                params.put("f." + facetField.getField() + ".facet.limit",
-                        Collections.singletonList(String.valueOf(facetField.getLimit())));
-            }
-            if (facetField.hasMissing()) {
-                params.put("f." + facetField.getField() + ".facet.missing",
-                        Collections.singletonList(String.valueOf(facetField.getMissing())));
-            }
-            if (facetField.hasPrefix()) {
-                params.put("f." + facetField.getField() + ".facet.prefix",
-                        Collections.singletonList(facetField.getPrefix()));
-            }
-        }
-    }
+    private void addUnifiedFacets(SearchRequest request, Map<String, List<String>> params) {
+        for (FacetRequest facetRequest : request.getFacetRequestsList()) {
+            switch (facetRequest.getFacetTypeCase()) {
+                case FACETFIELD:
+                    FacetField facetField = facetRequest.getFacetField();
+                    params.computeIfAbsent("facet.field", k -> new ArrayList<>()).add(facetField.getField());
+                    if (facetField.hasLimit()) {
+                        params.put("f." + facetField.getField() + ".facet.limit",
+                                Collections.singletonList(String.valueOf(facetField.getLimit())));
+                    }
+                    if (facetField.hasMissing()) {
+                        params.put("f." + facetField.getField() + ".facet.missing",
+                                Collections.singletonList(String.valueOf(facetField.getMissing())));
+                    }
+                    if (facetField.hasPrefix()) {
+                        params.put("f." + facetField.getField() + ".facet.prefix",
+                                Collections.singletonList(facetField.getPrefix()));
+                    }
+                    break;
 
-    /**
-     * Adds facet ranges to the Solr query parameters.
-     *
-     * @param request The SearchRequest from the client.
-     * @param params  The current Solr query parameters.
-     */
-    private void addFacetRanges(SearchRequest request, Map<String, List<String>> params) {
-        for (FacetRange facetRange : request.getFacetRangesList()) {
-            params.computeIfAbsent("facet.range", k -> new ArrayList<>()).add(facetRange.getField());
-            if (facetRange.hasStart()) {
-                params.put("f." + facetRange.getField() + ".facet.range.start",
-                        Collections.singletonList(facetRange.getStart()));
-            }
-            if (facetRange.hasEnd()) {
-                params.put("f." + facetRange.getField() + ".facet.range.end",
-                        Collections.singletonList(facetRange.getEnd()));
-            }
-            if (facetRange.hasGap()) {
-                params.put("f." + facetRange.getField() + ".facet.range.gap",
-                        Collections.singletonList(facetRange.getGap()));
-            }
-            if (facetRange.hasHardend()) {
-                params.put("f." + facetRange.getField() + ".facet.range.hardend",
-                        Collections.singletonList(String.valueOf(facetRange.getHardend())));
-            }
-            if (facetRange.hasOther()) {
-                params.put("f." + facetRange.getField() + ".facet.range.other",
-                        Collections.singletonList(facetRange.getOther()));
-            }
-        }
-    }
+                case FACETRANGE:
+                    FacetRange facetRange = facetRequest.getFacetRange();
+                    params.computeIfAbsent("facet.range", k -> new ArrayList<>()).add(facetRange.getField());
+                    if (facetRange.hasStart()) {
+                        params.put("f." + facetRange.getField() + ".facet.range.start",
+                                Collections.singletonList(facetRange.getStart()));
+                    }
+                    if (facetRange.hasEnd()) {
+                        params.put("f." + facetRange.getField() + ".facet.range.end",
+                                Collections.singletonList(facetRange.getEnd()));
+                    }
+                    if (facetRange.hasGap()) {
+                        params.put("f." + facetRange.getField() + ".facet.range.gap",
+                                Collections.singletonList(facetRange.getGap()));
+                    }
+                    if (facetRange.hasHardend()) {
+                        params.put("f." + facetRange.getField() + ".facet.range.hardend",
+                                Collections.singletonList(String.valueOf(facetRange.getHardend())));
+                    }
+                    if (facetRange.hasOther()) {
+                        params.put("f." + facetRange.getField() + ".facet.range.other",
+                                Collections.singletonList(facetRange.getOther()));
+                    }
+                    break;
 
-    /**
-     * Adds facet queries to the Solr query parameters.
-     *
-     * @param request The SearchRequest from the client.
-     * @param params  The current Solr query parameters.
-     */
-    private void addFacetQueries(SearchRequest request, Map<String, List<String>> params) {
-        for (FacetQuery facetQuery : request.getFacetQueriesList()) {
-            params.computeIfAbsent("facet.query", k -> new ArrayList<>()).add(facetQuery.getQuery());
+                case FACETQUERY:
+                    FacetQuery facetQuery = facetRequest.getFacetQuery();
+                    params.computeIfAbsent("facet.query", k -> new ArrayList<>()).add(facetQuery.getQuery());
+                    break;
+
+                case FACETTYPE_NOT_SET:
+                default:
+                    log.warn("Encountered FacetRequest with no facet type set.");
+                    break;
+            }
         }
     }
 
@@ -493,16 +487,56 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         }
 
         // Handle facets
+        Map<String, List<FacetResult>> facetsMap = new HashMap<>();
+
+        // Handle Facet Fields
         if (solrResponse.getFacetFields() != null) {
-            for (FacetField solrFacet : solrResponse.getFacetFields()) {
-                for (FacetField.Count count : solrFacet.getValues()) {
+            for (org.apache.solr.client.solrj.response.FacetField solrFacet : solrResponse.getFacetFields()) {
+                List<FacetResult> facetResults = facetsMap.computeIfAbsent(solrFacet.getName(), k -> new ArrayList<>());
+                for (org.apache.solr.client.solrj.response.FacetField.Count count : solrFacet.getValues()) {
                     FacetResult facetResult = FacetResult.newBuilder()
                             .setFacet(count.getName())
                             .setFacetCount(count.getCount())
                             .build();
-                    responseBuilder.putFacets(solrFacet.getName(), facetResult);
+                    facetResults.add(facetResult);
                 }
             }
+        }
+
+        // Handle Facet Queries
+        if (solrResponse.getFacetQuery() != null) {
+            for (Map.Entry<String, Integer> entry : solrResponse.getFacetQuery().entrySet()) {
+                List<FacetResult> facetResults = facetsMap.computeIfAbsent(entry.getKey(), k -> new ArrayList<>());
+                FacetResult facetResult = FacetResult.newBuilder()
+                        .setFacet(entry.getKey())
+                        .setFacetCount(entry.getValue())
+                        .build();
+                facetResults.add(facetResult);
+            }
+        }
+
+        // Handle Facet Ranges
+        if (solrResponse.getFacetRanges() != null) {
+            solrResponse.getFacetRanges().forEach(rangeFacet -> {
+                String rangeField = rangeFacet.getName(); // Adjust according to SolrJ API
+                List<FacetResult> facetResults = facetsMap.computeIfAbsent(rangeField, k -> new ArrayList<>());
+                for (Object countObj : rangeFacet.getCounts()) {
+                    RangeFacet.Count count = (RangeFacet.Count) countObj;
+                    FacetResult facetResult = FacetResult.newBuilder()
+                            .setFacet(count.getValue())
+                            .setFacetCount(count.getCount())
+                            .build();
+                    facetResults.add(facetResult);
+                }
+            });
+        }
+
+        // Populate facets in the response
+        for (Map.Entry<String, List<FacetResult>> entry : facetsMap.entrySet()) {
+            FacetResults facetResults = FacetResults.newBuilder()
+                    .addAllResults(entry.getValue())
+                    .build();
+            responseBuilder.putFacets(entry.getKey(), facetResults);
         }
 
         // Set total results and query time
@@ -526,13 +560,11 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
      */
     private String buildSnippet(Map<String, List<String>> highlighting, HighlightOptions highlightOptions) {
         List<String> snippets = new ArrayList<>();
-        for (Map.Entry<String, List<String>> entry : highlighting.entrySet()) {
-            snippets.addAll(entry.getValue());
+        for (List<String> snippetList : highlighting.values()) {
+            snippets.addAll(snippetList);
         }
 
         // Join snippets with a separator
         return String.join(" ... ", snippets);
     }
-
-
 }
