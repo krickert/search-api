@@ -15,9 +15,6 @@ public class ConfigurationTest {
     @Inject
     SearchApiConfig searchApiConfig;
 
-    @Inject
-    CollectionConfig collectionConfig;
-
     @Test
     void testConfigurationLoads() {
         // Test SearchApiConfig
@@ -72,6 +69,7 @@ public class ConfigurationTest {
         CollectionConfig collectionConfigFromSolrConfig = solrConfig.getCollectionConfig();
         assertNotNull(collectionConfigFromSolrConfig, "CollectionConfig in SolrConfig should not be null");
 
+
         // Now test the CollectionConfig
         assertEquals("documents", collectionConfigFromSolrConfig.getCollectionName(), "Collection name should match");
         assertNotNull(collectionConfigFromSolrConfig.getKeywordQueryFields(), "Keyword query fields should not be null");
@@ -100,5 +98,6 @@ public class ConfigurationTest {
         assertEquals(VectorFieldType.INLINE, titleVectorField.getVectorFieldType(), "Vector field type should match");
         assertEquals("http://localhost:50401/vectorizer", titleVectorField.getVectorGrpcService(), "Vector GRPC service should match");
         assertEquals(Integer.valueOf(10), titleVectorField.getK(), "K should match");
+
     }
 }
