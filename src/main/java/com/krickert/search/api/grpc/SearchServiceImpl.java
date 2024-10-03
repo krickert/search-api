@@ -515,19 +515,20 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             }
         }
 
-        // Handle Facet Ranges
+        // Handle Facet Ranges using Streams
         if (solrResponse.getFacetRanges() != null) {
             solrResponse.getFacetRanges().forEach(rangeFacet -> {
                 String rangeField = rangeFacet.getName(); // Adjust according to SolrJ API
                 List<FacetResult> facetResults = facetsMap.computeIfAbsent(rangeField, k -> new ArrayList<>());
-                for (Object countObj : rangeFacet.getCounts()) {
-                    RangeFacet.Count count = (RangeFacet.Count) countObj;
+                //noinspection unchecked
+                rangeFacet.getCounts().forEach(countObj -> {
+                    org.apache.solr.client.solrj.response.FacetField.Count count = (org.apache.solr.client.solrj.response.FacetField.Count) countObj;
                     FacetResult facetResult = FacetResult.newBuilder()
-                            .setFacet(count.getValue())
+                            .setFacet(count.getName())
                             .setFacetCount(count.getCount())
                             .build();
                     facetResults.add(facetResult);
-                }
+                });
             });
         }
 
