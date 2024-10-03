@@ -1,9 +1,10 @@
-package com.krickert.search.api.grpc;
+package com.krickert.search.api.grpc.mapper.query;
 
 import com.krickert.search.api.*;
 import com.krickert.search.api.config.CollectionConfig;
 import com.krickert.search.api.config.SearchApiConfig;
 import com.krickert.search.api.config.VectorFieldInfo;
+import com.krickert.search.api.grpc.client.VectorService;
 import io.micronaut.core.util.CollectionUtils;
 import org.apache.solr.common.params.HighlightParams;
 import org.slf4j.Logger;

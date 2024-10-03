@@ -4,6 +4,11 @@ import com.google.protobuf.Timestamp;
 import com.krickert.search.api.*;
 import com.krickert.search.api.config.CollectionConfig;
 import com.krickert.search.api.config.SearchApiConfig;
+import com.krickert.search.api.grpc.client.VectorService;
+import com.krickert.search.api.grpc.mapper.response.FacetProcessor;
+import com.krickert.search.api.grpc.mapper.response.ResponseMapper;
+import com.krickert.search.api.grpc.mapper.query.SolrQueryBuilder;
+import com.krickert.search.api.grpc.mapper.query.SolrQueryData;
 import com.krickert.search.api.solr.SolrService;
 import io.grpc.stub.StreamObserver;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -24,8 +29,6 @@ import static org.mockito.Mockito.*;
 class SearchServiceImplTest {
 
     private SolrService solrService;
-    private VectorService vectorService;
-    private SearchApiConfig searchApiConfig;
     private SolrQueryBuilder solrQueryBuilder;
     private FacetProcessor facetProcessor;
     private ResponseMapper responseMapper;
@@ -35,7 +38,6 @@ class SearchServiceImplTest {
     void setUp() {
         // Mock dependencies
         solrService = mock(SolrService.class);
-        vectorService = mock(VectorService.class);
         solrQueryBuilder = mock(SolrQueryBuilder.class);
         facetProcessor = mock(FacetProcessor.class);
         responseMapper = mock(ResponseMapper.class);
@@ -53,7 +55,7 @@ class SearchServiceImplTest {
         solrConfig.getDefaultSearch().setSort("score desc");
         solrConfig.getDefaultSearch().setRows(10);
 
-        searchApiConfig = new SearchApiConfig();
+        SearchApiConfig searchApiConfig = new SearchApiConfig();
         searchApiConfig.setSolr(solrConfig);
 
         // Initialize the SearchServiceImpl with mocked dependencies
@@ -94,7 +96,7 @@ class SearchServiceImplTest {
         when(solrQueryBuilder.buildSolrQueryParams(any())).thenReturn(solrQueryData);
 
         // Mock FacetProcessor to return empty facets (no facets in this basic test)
-        when(facetProcessor.processFacets(any(), any())).thenReturn(new HashMap<>());
+        when(facetProcessor.processFacets(any())).thenReturn(new HashMap<>());
 
         // Prepare a mock SearchResponse to be returned by ResponseMapper
         SearchResponse mockSearchResponse = SearchResponse.newBuilder()
@@ -117,6 +119,7 @@ class SearchServiceImplTest {
                 .build();
 
         // Create a mock StreamObserver to capture the response
+        @SuppressWarnings("unchecked")
         StreamObserver<SearchResponse> responseObserver = mock(StreamObserver.class);
 
         // Execute the search
@@ -198,7 +201,7 @@ class SearchServiceImplTest {
         processedFacets.put("category", FacetResults.newBuilder()
                 .addResults(FacetResult.newBuilder().setFacet("education").setFacetCount(2).build())
                 .build());
-        when(facetProcessor.processFacets(any(), any())).thenReturn(processedFacets);
+        when(facetProcessor.processFacets(any())).thenReturn(processedFacets);
 
         // Prepare a mock SearchResponse to be returned by ResponseMapper
         SearchResponse mockSearchResponse = SearchResponse.newBuilder()
@@ -240,6 +243,7 @@ class SearchServiceImplTest {
                 .build();
 
         // Create a mock StreamObserver to capture the response
+        @SuppressWarnings("unchecked")
         StreamObserver<SearchResponse> responseObserver = mock(StreamObserver.class);
 
         // Execute the search

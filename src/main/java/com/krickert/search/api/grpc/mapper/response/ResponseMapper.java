@@ -1,4 +1,4 @@
-package com.krickert.search.api.grpc;
+package com.krickert.search.api.grpc.mapper.response;
 
 import com.google.protobuf.Timestamp;
 import com.krickert.search.api.*;
@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.inject.Singleton;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Singleton
 public class ResponseMapper {
@@ -22,6 +21,8 @@ public class ResponseMapper {
     }
 
     public SearchResponse mapToSearchResponse(QueryResponse solrResponse, SearchRequest request, String fl) {
+        log.debug("mapping search response for search {}", request);
+
         SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
 
         // Determine the list of fields to include based on 'fl' parameter
@@ -49,7 +50,7 @@ public class ResponseMapper {
             if (request.hasHighlightOptions() && idObj != null) {
                 Map<String, List<String>> highlighting = solrResponse.getHighlighting().get(idObj.toString());
                 if (highlighting != null && !highlighting.isEmpty()) {
-                    String snippet = buildSnippet(highlighting, request.getHighlightOptions());
+                    String snippet = buildSnippet(highlighting);
                     resultBuilder.setSnippet(snippet);
                 } else {
                     resultBuilder.setSnippet("");
@@ -60,7 +61,7 @@ public class ResponseMapper {
         }
 
         // Handle facets
-        Map<String, FacetResults> processedFacets = facetProcessor.processFacets(solrResponse, request);
+        Map<String, FacetResults> processedFacets = facetProcessor.processFacets(solrResponse);
         responseBuilder.putAllFacets(processedFacets);
 
         // Set total results and query time
@@ -89,7 +90,7 @@ public class ResponseMapper {
         return includedFields;
     }
 
-    private String buildSnippet(Map<String, List<String>> highlighting, HighlightOptions highlightOptions) {
+    private String buildSnippet(Map<String, List<String>> highlighting) {
         List<String> snippets = new ArrayList<>();
         for (List<String> snippetList : highlighting.values()) {
             snippets.addAll(snippetList);

@@ -1,4 +1,4 @@
-package com.krickert.search.api.grpc;
+package com.krickert.search.api.grpc.mapper.query;
 
 import java.util.Map;
 import java.util.List;

@@ -1,8 +1,7 @@
-package com.krickert.search.api.grpc;
+package com.krickert.search.api.grpc.mapper.response;
 
 import com.krickert.search.api.FacetResult;
 import com.krickert.search.api.FacetResults;
-import com.krickert.search.api.SearchRequest;
 import org.apache.solr.client.solrj.response.FacetField;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.RangeFacet;
@@ -19,7 +18,7 @@ import java.util.Map;
 public class FacetProcessor {
     private static final Logger log = LoggerFactory.getLogger(FacetProcessor.class);
 
-    public Map<String, FacetResults> processFacets(QueryResponse solrResponse, SearchRequest request) {
+    public Map<String, FacetResults> processFacets(QueryResponse solrResponse) {
         Map<String, List<FacetResult>> facetsMap = new HashMap<>();
 
         // Handle Facet Fields

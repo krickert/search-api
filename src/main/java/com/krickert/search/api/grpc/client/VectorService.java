@@ -1,4 +1,4 @@
-package com.krickert.search.api.grpc;
+package com.krickert.search.api.grpc.client;
 
 import com.krickert.search.api.config.VectorFieldInfo;
 import com.krickert.search.service.EmbeddingServiceGrpc;
@@ -52,16 +52,12 @@ public class VectorService {
             throw new IllegalArgumentException("VectorFieldInfo cannot be null");
         }
 
-        switch (vectorFieldInfo.getVectorFieldType()) {
-            case INLINE:
-                return buildVectorQuery(vectorFieldInfo.getVectorFieldName(), embedding, topK);
-            case EMBEDDED_DOC:
-                return buildEmbeddedDocJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), embedding, topK);
-            case CHILD_COLLECTION:
-                return buildExternalCollectionJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), vectorFieldInfo.getChunkCollection(), embedding, topK);
-            default:
-                throw new IllegalArgumentException("Unsupported VectorFieldType: " + vectorFieldInfo.getVectorFieldType());
-        }
+        return switch (vectorFieldInfo.getVectorFieldType()) {
+            case INLINE -> buildVectorQuery(vectorFieldInfo.getVectorFieldName(), embedding, topK);
+            case EMBEDDED_DOC -> buildEmbeddedDocJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), embedding, topK);
+            case CHILD_COLLECTION ->
+                    buildExternalCollectionJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), vectorFieldInfo.getChunkCollection(), embedding, topK);
+        };
     }
 
     /**
