@@ -350,7 +350,7 @@ public class SearchApiConfig {
     @Introspected
     public static class VectorDefault {
         private String vectorGrpcChannel;
-        private Integer vectorGrpcTimeout;
+        private String vectorGrpcDisplayName;
 
         public String getVectorGrpcChannel() {
             return vectorGrpcChannel;
@@ -359,19 +359,17 @@ public class SearchApiConfig {
             this.vectorGrpcChannel = vectorGrpcChannel;
         }
 
-        public Integer getVectorGrpcTimeout() {
-            return vectorGrpcTimeout;
+        public String getVectorGrpcDisplayName() {
+            return vectorGrpcDisplayName;
         }
-
-        public void setVectorGrpcTimeout(Integer vectorGrpcTimeout) {
-            this.vectorGrpcTimeout = vectorGrpcTimeout;
+        public void setVectorGrpcDisplayName(String vectorGrpcDisplayName) {
+            this.vectorGrpcDisplayName = vectorGrpcDisplayName;
         }
-
         @Override
         public String toString() {
             return MoreObjects.toStringHelper(this)
                     .add("vectorGrpcChannel", vectorGrpcChannel)
-                    .add("vectorGrpcTimeout", vectorGrpcTimeout)
+                    .add("vectorGrpcDisplayName", vectorGrpcDisplayName)
                     .toString();
         }
     }

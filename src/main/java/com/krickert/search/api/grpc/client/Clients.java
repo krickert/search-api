@@ -12,7 +12,7 @@ public class Clients {
     @Bean
     @Named("searchEmbeddingService")
     EmbeddingServiceGrpc.EmbeddingServiceBlockingStub inlineEmbeddingServiceBlockingStub (
-            @GrpcChannel("${search-api.vector-grpc-channel}")
+            @GrpcChannel("${search-api.vector-default.vector-grpc-channel}")
             ManagedChannel channel) {
         return EmbeddingServiceGrpc.newBlockingStub(
                 channel

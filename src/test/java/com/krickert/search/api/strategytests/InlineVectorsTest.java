@@ -16,15 +16,11 @@ import com.krickert.search.service.EmbeddingsVectorRequest;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.micronaut.context.ApplicationContext;
-import io.micronaut.context.annotation.Property;
 import io.micronaut.context.annotation.Value;
 import io.micronaut.grpc.server.GrpcEmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.Http2SolrClient;
-import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.apache.solr.common.SolrInputDocument;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
@@ -77,7 +73,7 @@ public class InlineVectorsTest extends AbstractSolrTest {
         String host = vectorizerContainer.getHost();
         int port = vectorizerContainer.getMappedPort(50401);
         String vectorizerUrl = "http://" + host + ":" + port;
-        System.setProperty("search-api.vector-grpc-channel", vectorizerUrl);
+        System.setProperty("search-api.vector-default.vector-grpc-channel", vectorizerUrl);
         System.setProperty("search-api.solr.url", "http://" + AbstractSolrTest.solrContainer.getHost() + ":" + AbstractSolrTest.solrContainer.getMappedPort(8983) + "/solr");
         log.info("Set system property 'search-api.vector-grpc-channel' to {}", vectorizerUrl);
         log.info("Set system property 'search-api.solr.url' to {}", System.getProperty("search-api.solr.url"));
@@ -241,7 +237,7 @@ public class InlineVectorsTest extends AbstractSolrTest {
 
         if (Files.exists(cachePath)) {
             vectorsCache = objectMapper.readValue(cachePath.toFile(),
-                    new TypeReference<Map<String, Map<String, List<Float>>>>() {});
+                    new TypeReference<>() {});
             log.info("Loaded vectors cache from {}", VECTORS_CACHE_FILE);
         } else {
             vectorsCache = new HashMap<>();
@@ -273,9 +269,7 @@ public class InlineVectorsTest extends AbstractSolrTest {
 
         // Log results
         log.info("==== {} ====", testDescription);
-        response.getResultsList().forEach(result -> {
-            log.info("Found document ID: {}, Snippet: {}", result.getId(), StringUtils.truncate(result.getSnippet(), 100));
-        });
+        response.getResultsList().forEach(result -> log.info("Found document ID: {}, Snippet: {}", result.getId(), StringUtils.truncate(result.getSnippet(), 100)));
 
         // Optionally, print the entire response in JSON format for debugging
         String jsonResponse = JsonFormat.printer().includingDefaultValueFields().print(response);
