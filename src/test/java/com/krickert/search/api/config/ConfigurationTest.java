@@ -4,6 +4,9 @@ import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @MicronautTest(environments = {"test"})
@@ -19,13 +22,32 @@ public class ConfigurationTest {
     void testConfigurationLoads() {
         // Test SearchApiConfig
         assertNotNull(searchApiConfig, "SearchApiConfig should not be null");
-        assertEquals("http://localhost:50401", searchApiConfig.getVectorGrpcChannel(), "vector-grpc-channel should match");
 
         // Test SolrConfig
         SearchApiConfig.SolrConfig solrConfig = searchApiConfig.getSolr();
         assertNotNull(solrConfig, "SolrConfig should not be null");
         assertEquals("dummy-value-auto-generated", solrConfig.getUrl(), "Solr URL should match");
 
+        SearchApiConfig.SolrConfig.DefaultSearch defaultSearch = solrConfig.getDefaultSearch();
+        assertNotNull(defaultSearch, "DefaultSearch should not be null");
+        assertEquals(30, defaultSearch.getRows(), "Rows should match");
+        assertEquals("score desc", defaultSearch.getSort(), "Sort should match");
+        assertEquals("semantic", defaultSearch.getSearchType(), "Search type should match");
+        assertFalse(defaultSearch.getDebug());
+
+        // Check includeFields
+        assertNotNull(defaultSearch.getIncludeFields(), "IncludeFields should not be null");
+        assertEquals(Arrays.asList("title", "body"), defaultSearch.getIncludeFields(), "IncludeFields should match");
+
+        // Check excludeFields
+        assertNotNull(defaultSearch.getExcludeFields(), "ExcludeFields should not be null");
+        assertEquals(List.of("body-paragraphs"), defaultSearch.getExcludeFields(), "ExcludeFields should match");
+
+        SearchApiConfig.VectorDefault vectorDefault = searchApiConfig.getVectorDefault();
+        // Assertions to test the values of VectorDefault
+        assertNotNull(vectorDefault, "VectorDefault should not be null");
+        assertEquals("search-api.vector-grpc-channel", vectorDefault.getVectorGrpcChannel(), "VectorGrpcChannel should match");
+        assertEquals(5000, vectorDefault.getVectorGrpcTimeout(), "GrpcTimeout should match");
         // Test Authentication
         SearchApiConfig.SolrConfig.Authentication authentication = solrConfig.getAuthentication();
         assertNotNull(authentication, "Authentication should not be null");

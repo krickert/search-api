@@ -8,6 +8,7 @@ import com.krickert.search.api.config.VectorFieldInfo;
 import com.krickert.search.api.solr.SolrService;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.grpc.annotation.GrpcService;
 import jakarta.inject.Inject;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -19,11 +20,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
+
+import static io.micronaut.core.util.StringUtils.isNotEmpty;
 
 @GrpcService
 public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
@@ -32,27 +32,29 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
     private final SolrService solrService;
     private final VectorService vectorService;
     private final CollectionConfig collectionConfig;
+    private final SearchApiConfig searchApiConfig;
 
     @Inject
     public SearchServiceImpl(SolrService solrService, VectorService vectorService, SearchApiConfig config) {
         this.solrService = solrService;
         this.vectorService = vectorService;
-        this.collectionConfig = config.getSolr().getCollectionConfig();  // Use injected config
+        this.collectionConfig = config.getSolr().getCollectionConfig();
+        this.searchApiConfig = config;
     }
 
     @Override
     public void search(SearchRequest request, StreamObserver<SearchResponse> responseObserver) {
         try {
-            // Build Solr query params dynamically
-            Map<String, String> queryParams = buildSolrQueryParams(request);
+            // Build Solr query parameters based on the request and configuration
+            SolrQueryData solrQueryData = buildSolrQueryParams(request);
 
-            // Execute Solr query
-            QueryResponse solrResponse = solrService.query(collectionConfig.getCollectionName(), queryParams);
+            // Execute the Solr query
+            QueryResponse solrResponse = solrService.query(collectionConfig.getCollectionName(), solrQueryData.queryParams);
 
-            // Parse Solr response into gRPC response
-            SearchResponse searchResponse = parseSolrResponse(solrResponse, request);
+            // Parse the Solr response into the gRPC SearchResponse
+            SearchResponse searchResponse = parseSolrResponse(solrResponse, request, solrQueryData.fl);
 
-            // Send response
+            // Send the response back to the client
             responseObserver.onNext(searchResponse);
             responseObserver.onCompleted();
         } catch (SolrServerException e) {
@@ -67,271 +69,470 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
         }
     }
 
-    private Map<String, String> buildSolrQueryParams(SearchRequest request) {
-        Map<String, String> params = new HashMap<>();
+    /**
+     * Helper class to hold Solr query parameters and 'fl' parameter.
+     */
+    private static class SolrQueryData {
+        Map<String, List<String>> queryParams;
+        String fl;
 
-        // Handle different search strategies (keyword/semantic)
-        if (request.getStrategy().hasSemantic()) {
-            addSemanticParams(request.getStrategy().getSemantic(), request, params);
-        } else if (request.getStrategy().hasKeyword()) {
-            addKeywordParams(request.getStrategy().getKeyword(), request, params);
-            enableHighlighting(params);  // Enable highlighting for keyword search
+        SolrQueryData(Map<String, List<String>> queryParams, String fl) {
+            this.queryParams = queryParams;
+            this.fl = fl;
+        }
+    }
+
+    /**
+     * Builds the Solr query parameters based on the SearchRequest and default configurations.
+     *
+     * @param request The SearchRequest from the client.
+     * @return SolrQueryData containing the query parameters and 'fl' parameter.
+     */
+    private SolrQueryData buildSolrQueryParams(SearchRequest request) {
+        Map<String, List<String>> params = new HashMap<>();
+
+        // Handle search strategies (semantic and/or keyword)
+        if (request.hasStrategy()) {
+            SearchStrategyOptions strategy = request.getStrategy();
+            if (strategy.hasSemantic()) {
+                addSemanticParams(strategy.getSemantic(), request, params);
+            }
+            if (strategy.hasKeyword()) {
+                addKeywordParams(strategy.getKeyword(), request, params);
+                enableHighlighting(request, params); // Enable highlighting for keyword search
+            }
         }
 
+        // Handle start and rows (paging)
         int start = request.hasStart() ? request.getStart() : 0;
-        int numResults = request.hasNumResults() ? request.getNumResults() : 10; // Default to 10 or a configured default
+        int numResults = request.hasNumResults() ? request.getNumResults() : searchApiConfig.getSolr().getDefaultSearch().getRows();
+        params.put("start", Collections.singletonList(String.valueOf(start)));
+        params.put("rows", Collections.singletonList(String.valueOf(numResults)));
 
-        params.put("start", String.valueOf(start));
-        params.put("rows", String.valueOf(numResults));
+        // Handle filter queries (fq)
+        if (!request.getFilterQueriesList().isEmpty()) {
+            params.put("fq", request.getFilterQueriesList());
+        }
 
-        // Filter Queries (fq)
-        request.getFilterQueriesList().forEach(filter -> params.put("fq", filter));
-
-        // Sorting
+        // Handle sorting
         if (request.hasSort()) {
             SortOptions sortOptions = request.getSort();
-            String sortField = sortOptions.getSortType() == SortType.SCORE ? "score" : sortOptions.getSortField();
-            String sortOrder = sortOptions.getSortOrder().name().toLowerCase();
-            params.put("sort", sortField + " " + sortOrder);
+            String sortField = (sortOptions.getSortType() == SortType.FIELD && sortOptions.hasSortField())
+                    ? sortOptions.getSortField()
+                    : "score"; // Default sort field
+            String sortOrder = sortOptions.getSortOrder() == SortOrder.ASC ? "asc" : "desc";
+            params.put("sort", Collections.singletonList(sortField + " " + sortOrder));
         } else {
-            // Default sorting by score desc
-            params.put("sort", "score desc");
+            // Use default sort from configuration
+            params.put("sort", Collections.singletonList(searchApiConfig.getSolr().getDefaultSearch().getSort()));
         }
 
-        // Facets
+        // Handle facets
         addFacetFields(request, params);
-        // Facet Ranges
         addFacetRanges(request, params);
+        addFacetQueries(request, params);
 
-        // Query Facets
-        request.getFacetQueriesList().forEach(facetQuery -> params.put("facet.query", facetQuery.getQuery()));
-
-        // Additional Parameters
+        // Handle additional parameters
         if (request.hasAdditionalParams()) {
-            request.getAdditionalParams().getParamList().forEach(param -> params.put(param.getField(), param.getValue()));
+            request.getAdditionalParams().getParamList().forEach(param ->
+                    params.computeIfAbsent(param.getField(), k -> new ArrayList<>()).add(param.getValue())
+            );
         }
 
-        return params;
+        // Handle field list (inclusion/exclusion)
+        String fl = handleFieldList(request, params);
+
+        return new SolrQueryData(params, fl);
     }
 
-    private void addFacetFields(SearchRequest request, Map<String, String> params) {
-        request.getFacetFieldsList().forEach(facetField -> {
-            params.put("facet.field", facetField.getField());
+    /**
+     * Handles the inclusion and exclusion of fields based on FieldList in the SearchRequest or defaults.
+     *
+     * @param request The SearchRequest from the client.
+     * @param params  The current Solr query parameters.
+     * @return The 'fl' parameter string.
+     */
+    private String handleFieldList(SearchRequest request, Map<String, List<String>> params) {
+        String fl;
+        if (request.hasFieldList()) {
+            FieldList fieldList = request.getFieldList();
+            List<String> inclusionFields = fieldList.getInclusionFieldsList();
+            List<String> exclusionFields = fieldList.getExclusionFieldsList();
+
+            List<String> flParts = new ArrayList<>();
+
+            // Add inclusion fields
+            if (!inclusionFields.isEmpty()) {
+                flParts.addAll(inclusionFields);
+            }
+
+            // Add exclusion fields with '-' prefix
+            if (!exclusionFields.isEmpty()) {
+                List<String> excluded = exclusionFields.stream()
+                        .map(field -> "-" + field)
+                        .toList();
+                flParts.addAll(excluded);
+            }
+
+            // Detect conflicts (fields in both inclusion and exclusion)
+            Set<String> includedSet = new HashSet<>(inclusionFields);
+            Set<String> excludedSet = new HashSet<>(exclusionFields);
+            includedSet.retainAll(excludedSet);
+            if (!includedSet.isEmpty()) {
+                log.warn("Fields {} are both included and excluded. They will be excluded.", includedSet);
+                // Remove conflicting fields from inclusion
+                flParts.removeAll(includedSet);
+                excludedSet.forEach(field -> flParts.add("-" + field));
+            }
+
+            fl = String.join(",", flParts);
+        } else {
+            // Use default fields from configuration
+            List<String> defaultFields = searchApiConfig.getSolr().getCollectionConfig().getDefaultFields();
+            if (CollectionUtils.isNotEmpty(defaultFields)) {
+                fl = String.join(",", defaultFields);
+            } else {
+                fl = "*";
+            }
+        }
+        params.put("fl", Collections.singletonList(fl));
+        log.debug("Set 'fl' parameter to: {}", fl);
+
+        return fl;
+    }
+
+    /**
+     * Adds facet fields to the Solr query parameters.
+     *
+     * @param request The SearchRequest from the client.
+     * @param params  The current Solr query parameters.
+     */
+    private void addFacetFields(SearchRequest request, Map<String, List<String>> params) {
+        for (com.krickert.search.api.FacetField facetField : request.getFacetFieldsList()) {
+            params.computeIfAbsent("facet.field", k -> new ArrayList<>()).add(facetField.getField());
             if (facetField.hasLimit()) {
-                params.put("f." + facetField.getField() + ".facet.limit", String.valueOf(facetField.getLimit()));
+                params.put("f." + facetField.getField() + ".facet.limit",
+                        Collections.singletonList(String.valueOf(facetField.getLimit())));
             }
             if (facetField.hasMissing()) {
-                params.put("f." + facetField.getField() + ".facet.missing", String.valueOf(facetField.getMissing()));
+                params.put("f." + facetField.getField() + ".facet.missing",
+                        Collections.singletonList(String.valueOf(facetField.getMissing())));
             }
             if (facetField.hasPrefix()) {
-                params.put("f." + facetField.getField() + ".facet.prefix", facetField.getPrefix());
+                params.put("f." + facetField.getField() + ".facet.prefix",
+                        Collections.singletonList(facetField.getPrefix()));
             }
-        });
-    }
-
-    private void enableHighlighting(Map<String, String> params) {
-        List<String> keywordFields = collectionConfig.getKeywordQueryFields();
-        String fieldsToHighlight = String.join(",", keywordFields);
-
-        params.put(HighlightParams.HIGHLIGHT, "true");
-        params.put(HighlightParams.FIELDS, fieldsToHighlight);
-        params.put(HighlightParams.SNIPPETS, "1");
-        params.put(HighlightParams.FRAGSIZE, "100");
-    }
-
-    private void addKeywordParams(KeywordOptions keywordOptions, SearchRequest request, Map<String, String> params) {
-        // Build the keyword search query using the keyword fields from the config
-        List<String> keywordFields = collectionConfig.getKeywordQueryFields();
-        String query = keywordFields.stream()
-                .map(field -> field + ":(" + request.getQuery() + ")")
-                .collect(Collectors.joining(" OR "));
-
-        params.put("q", query);
-
-        // Apply boost with semantic if needed
-        if (keywordOptions.getBoostWithSemantic()) {
-            // Retrieve the embedding for the query text
-            List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
-
-            Map<String, VectorFieldInfo> vectorFields = collectionConfig.getVectorFieldsByName();
-            // Loop over vector fields to apply boosts
-            String boostQueries = vectorFields.values().stream()
-                    .map(vectorFieldInfo -> {
-                        String boostQuery = vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, vectorFieldInfo.getK());
-                        return boostQuery;
-                    })
-                    .collect(Collectors.joining(" "));
-            params.put("bq", boostQueries);
         }
     }
 
-    private void addSemanticParams(SemanticOptions semanticOptions, SearchRequest request, Map<String, String> params) {
-        Map<String, VectorFieldInfo> vectorFieldInfoMap = collectionConfig.getVectorFieldsByName();
+    /**
+     * Adds facet ranges to the Solr query parameters.
+     *
+     * @param request The SearchRequest from the client.
+     * @param params  The current Solr query parameters.
+     */
+    private void addFacetRanges(SearchRequest request, Map<String, List<String>> params) {
+        for (FacetRange facetRange : request.getFacetRangesList()) {
+            params.computeIfAbsent("facet.range", k -> new ArrayList<>()).add(facetRange.getField());
+            if (facetRange.hasStart()) {
+                params.put("f." + facetRange.getField() + ".facet.range.start",
+                        Collections.singletonList(facetRange.getStart()));
+            }
+            if (facetRange.hasEnd()) {
+                params.put("f." + facetRange.getField() + ".facet.range.end",
+                        Collections.singletonList(facetRange.getEnd()));
+            }
+            if (facetRange.hasGap()) {
+                params.put("f." + facetRange.getField() + ".facet.range.gap",
+                        Collections.singletonList(facetRange.getGap()));
+            }
+            if (facetRange.hasHardend()) {
+                params.put("f." + facetRange.getField() + ".facet.range.hardend",
+                        Collections.singletonList(String.valueOf(facetRange.getHardend())));
+            }
+            if (facetRange.hasOther()) {
+                params.put("f." + facetRange.getField() + ".facet.range.other",
+                        Collections.singletonList(facetRange.getOther()));
+            }
+        }
+    }
 
-        // Log the requested vector fields
-        log.info("Requested vector fields for semantic search: {}", semanticOptions.getVectorFieldsList());
+    /**
+     * Adds facet queries to the Solr query parameters.
+     *
+     * @param request The SearchRequest from the client.
+     * @param params  The current Solr query parameters.
+     */
+    private void addFacetQueries(SearchRequest request, Map<String, List<String>> params) {
+        for (FacetQuery facetQuery : request.getFacetQueriesList()) {
+            params.computeIfAbsent("facet.query", k -> new ArrayList<>()).add(facetQuery.getQuery());
+        }
+    }
+
+    /**
+     * Enables highlighting based on the SearchRequest's HighlightOptions.
+     *
+     * @param request The SearchRequest from the client.
+     * @param params  The current Solr query parameters.
+     */
+    private void enableHighlighting(SearchRequest request, Map<String, List<String>> params) {
+        if (request.hasHighlightOptions()) {
+            HighlightOptions highlight = request.getHighlightOptions();
+            params.put(HighlightParams.HIGHLIGHT, Collections.singletonList("true"));
+
+            if (!highlight.getFieldsList().isEmpty()) {
+                String fieldsToHighlight = String.join(",", highlight.getFieldsList());
+                params.put(HighlightParams.FIELDS, Collections.singletonList(fieldsToHighlight));
+            }
+
+            if (isNotEmpty(highlight.getPreTag())) {
+                params.put(HighlightParams.SIMPLE_PRE, Collections.singletonList(highlight.getPreTag()));
+            } else {
+                params.put(HighlightParams.SIMPLE_PRE, Collections.singletonList("<em>"));
+            }
+
+            if (isNotEmpty(highlight.getPostTag())) {
+                params.put(HighlightParams.SIMPLE_POST, Collections.singletonList(highlight.getPostTag()));
+            } else {
+                params.put(HighlightParams.SIMPLE_POST, Collections.singletonList("</em>"));
+            }
+
+            if (highlight.getSnippetCount() > 0) {
+                params.put(HighlightParams.SNIPPETS, Collections.singletonList(String.valueOf(highlight.getSnippetCount())));
+            } else {
+                params.put(HighlightParams.SNIPPETS, Collections.singletonList("1")); // Default to 1 snippet
+            }
+
+            if (highlight.getSnippetSize() > 0) {
+                params.put(HighlightParams.FRAGSIZE, Collections.singletonList(String.valueOf(highlight.getSnippetSize())));
+            } else {
+                params.put(HighlightParams.FRAGSIZE, Collections.singletonList("100")); // Default snippet size
+            }
+
+            // Handle semantic-specific highlighting if applicable
+            if (highlight.getSemanticHighlight()) {
+                // Implement semantic highlighting logic as needed
+                // This might involve highlighting entire chunks instead of snippets
+                // Depending on your Solr schema and data structure
+                log.debug("Semantic highlighting enabled.");
+            }
+
+            log.debug("Highlighting parameters set: {}", params);
+        }
+    }
+
+    /**
+     * Adds semantic search parameters to the Solr query.
+     *
+     * @param semanticOptions The SemanticOptions from the SearchRequest.
+     * @param request         The SearchRequest from the client.
+     * @param params          The current Solr query parameters.
+     */
+    private void addSemanticParams(SemanticOptions semanticOptions, SearchRequest request, Map<String, List<String>> params) {
+        List<VectorFieldInfo> vectorFieldsToUse = determineVectorFields(semanticOptions);
 
         // Retrieve the embedding for the query text
         List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
-        log.debug("Retrieved query embedding: {}", queryEmbedding);
 
-        int topK = semanticOptions.getTopK() != 0 ? semanticOptions.getTopK() : 10;  // Default to 10 if not specified
-        log.debug("Using topK: {}", topK);
+        // Build vector queries for each vector field
+        List<String> vectorQueries = vectorFieldsToUse.stream()
+                .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK()))
+                .collect(Collectors.toList());
 
-        // Determine which vector fields to use
-        List<VectorFieldInfo> vectorFieldsToUse;
-        if (semanticOptions.getVectorFieldsList().isEmpty()) {
-            // Use all vector fields
-            vectorFieldsToUse = new ArrayList<>(vectorFieldInfoMap.values());
-            log.info("No vector fields specified. Using all configured vector fields.");
-        } else {
-            // Use specified vector fields
-            vectorFieldsToUse = semanticOptions.getVectorFieldsList().stream()
-                    .map(fieldName -> {
-                        VectorFieldInfo info = vectorFieldInfoMap.get(fieldName);
-                        if (info == null) {
-                            log.error("VectorFieldInfo not found for field: {}", fieldName);
-                            throw new IllegalArgumentException("Vector field not found: " + fieldName);
-                        }
-                        return info;
-                    })
-                    .collect(Collectors.toList());
-            log.info("Using specified vector fields: {}", semanticOptions.getVectorFieldsList());
-        }
+        // Combine vector queries using logical operators
+        String combinedVectorQuery = String.join(" OR ", vectorQueries);
+        params.put("q", Collections.singletonList(combinedVectorQuery));
 
-        // Log the mapped VectorFieldInfo objects
-        log.info("Mapped VectorFieldInfo objects: {}", vectorFieldsToUse);
-
-        // Build queries for each vector field
-        String combinedQuery = vectorFieldsToUse.stream()
-                .map(vectorFieldInfo -> {
-                    String vectorQuery = vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, topK);
-                    log.debug("Built vector query for field '{}': {}", vectorFieldInfo.getVectorFieldName(), vectorQuery);
-                    return vectorQuery;
-                })
-                .collect(Collectors.joining(" OR "));
-
-        log.debug("Combined vector query: {}", combinedQuery);
-        params.put("q", combinedQuery);
-
-        // Handle similarity options (if present)
+        // Handle similarity options
         SimilarityOptions similarity = semanticOptions.hasSimilarity() ? semanticOptions.getSimilarity() : SimilarityOptions.getDefaultInstance();
 
         if (similarity.hasMinReturn()) {
-            params.put("minReturn", String.valueOf(similarity.getMinReturn()));
-            log.debug("Set minReturn to {}", similarity.getMinReturn());
+            params.put("minReturn", Collections.singletonList(String.valueOf(similarity.getMinReturn())));
         } else {
-            // Default minReturn value
-            params.put("minReturn", "1");
-            log.debug("Set default minReturn to 1");
+            params.put("minReturn", Collections.singletonList("1")); // Default minReturn
         }
 
         if (similarity.hasMinTraverse()) {
-            params.put("minTraverse", String.valueOf(similarity.getMinTraverse()));
-            log.debug("Set minTraverse to {}", similarity.getMinTraverse());
+            params.put("minTraverse", Collections.singletonList(String.valueOf(similarity.getMinTraverse())));
         } else {
-            // Default minTraverse value
-            params.put("minTraverse", "-Infinity");
-            log.debug("Set default minTraverse to -Infinity");
+            params.put("minTraverse", Collections.singletonList("-Infinity")); // Default minTraverse
         }
 
-        // Pre-filters
-        similarity.getPreFilterList().forEach(filter -> {
-            String fq = filter.getField() + ":" + filter.getValue();
-            params.put("fq", fq);
-            log.debug("Added pre-filter: {}", fq);
-        });
+        // Apply pre-filters if any
+        if (!similarity.getPreFilterList().isEmpty()) {
+            for (Filter filter : similarity.getPreFilterList()) {
+                String fq = filter.getField() + ":" + filter.getValue();
+                params.computeIfAbsent("fq", k -> new ArrayList<>()).add(fq);
+            }
+        }
+
+        log.debug("Semantic search parameters set: {}", params);
     }
 
-    private SearchResponse parseSolrResponse(QueryResponse solrResponse, SearchRequest request) {
+    /**
+     * Determines which vector fields to use based on SemanticOptions and configuration.
+     *
+     * @param semanticOptions The SemanticOptions from the SearchRequest.
+     * @return A list of VectorFieldInfo objects to be used for semantic search.
+     */
+    private List<VectorFieldInfo> determineVectorFields(SemanticOptions semanticOptions) {
+        List<String> requestedVectorFields = semanticOptions.getVectorFieldsList();
+
+        if (requestedVectorFields.isEmpty()) {
+            // Use all configured vector fields if none are specified
+            log.info("No vector fields specified in SemanticOptions. Using all configured vector fields.");
+            return new ArrayList<>(collectionConfig.getVectorFields().values());
+        } else {
+            // Use only the specified vector fields
+            List<VectorFieldInfo> vectorFields = new ArrayList<>();
+            for (String fieldName : requestedVectorFields) {
+                VectorFieldInfo info = collectionConfig.getVectorFieldsByName().get(fieldName);
+                if (info == null) {
+                    log.error("VectorFieldInfo not found for field: {}", fieldName);
+                    throw new IllegalArgumentException("Vector field not found: " + fieldName);
+                }
+                vectorFields.add(info);
+            }
+            log.info("Using specified vector fields: {}", requestedVectorFields);
+            return vectorFields;
+        }
+    }
+
+    /**
+     * Adds keyword search parameters to the Solr query.
+     *
+     * @param keywordOptions The KeywordOptions from the SearchRequest.
+     * @param request        The SearchRequest from the client.
+     * @param params         The current Solr query parameters.
+     */
+    private void addKeywordParams(KeywordOptions keywordOptions, SearchRequest request, Map<String, List<String>> params) {
+        List<String> keywordFields = collectionConfig.getKeywordQueryFields();
+        if (keywordFields.isEmpty()) {
+            log.warn("No keyword query fields configured.");
+            throw new IllegalStateException("No keyword query fields configured.");
+        }
+
+        // Build the keyword search query using OR between fields
+        String keywordQuery = keywordFields.stream()
+                .map(field -> field + ":(" + request.getQuery() + ")")
+                .collect(Collectors.joining(" OR "));
+        params.put("q", Collections.singletonList(keywordQuery));
+
+        // Apply boosting with semantic if enabled
+        if (keywordOptions.getBoostWithSemantic()) {
+            List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
+
+            // Build boost queries for each vector field
+            List<String> boostQueries = collectionConfig.getVectorFields().values().stream()
+                    .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, vectorFieldInfo.getK()))
+                    .collect(Collectors.toList());
+
+            // Combine boost queries
+            String combinedBoostQuery = String.join(" ", boostQueries);
+            params.put("bq", Collections.singletonList(combinedBoostQuery));
+
+            log.debug("Boost queries applied: {}", combinedBoostQuery);
+        }
+
+        log.debug("Keyword search parameters set: {}", params);
+    }
+
+    /**
+     * Parses the Solr response and maps it to the gRPC SearchResponse.
+     *
+     * @param solrResponse The Solr QueryResponse.
+     * @param request      The original SearchRequest.
+     * @param fl           The 'fl' parameter string.
+     * @return The mapped SearchResponse.
+     */
+    private SearchResponse parseSolrResponse(QueryResponse solrResponse, SearchRequest request, String fl) {
         SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
 
-        // Map Solr documents to gRPC response
-        solrResponse.getResults().forEach(doc -> {
-            SearchResult.Builder resultBuilder = SearchResult.newBuilder()
-                    .setId(doc.getFieldValue("id").toString());
+        // Determine the list of fields to include based on 'fl' parameter
+        Set<String> includedFields = new HashSet<>();
+        if (fl != null && !fl.isEmpty()) {
+            String[] flParts = fl.split(",");
+            for (String field : flParts) {
+                field = field.trim();
+                if (!field.startsWith("-")) {
+                    includedFields.add(field);
+                }
+            }
+        }
 
-            // Dynamically add fields to the result
-            for (String field : collectionConfig.getKeywordQueryFields()) {
-                if (doc.getFieldValue(field) != null) {
-                    resultBuilder.putFields(field, doc.getFieldValue(field).toString());
+        // Map Solr documents to SearchResult
+        for (SolrDocument doc : solrResponse.getResults()) {
+            SearchResult.Builder resultBuilder = SearchResult.newBuilder();
+
+            // Set document ID
+            Object idObj = doc.getFieldValue("id");
+            if (idObj != null) {
+                resultBuilder.setId(idObj.toString());
+            }
+
+            // Dynamically add fields based on 'fl' parameter
+            for (String field : includedFields) {
+                Object value = doc.getFieldValue(field);
+                if (value != null) {
+                    resultBuilder.putFields(field, value.toString());
                 }
             }
 
-            // Add matched snippets (semantic or keyword)
-            if (request.getStrategy().hasSemantic()) {
-                resultBuilder.setSnippet(getMatchedSemanticSnippet(doc));
-            } else if (request.getStrategy().hasKeyword()) {
-                String highlightSnippet = getHighlightSnippet(doc, solrResponse);
-                resultBuilder.setSnippet(highlightSnippet != null ? highlightSnippet : "");
+            // Add snippets (highlighting)
+            if (request.hasHighlightOptions() && idObj != null) {
+                Map<String, List<String>> highlighting = solrResponse.getHighlighting().get(idObj.toString());
+                if (highlighting != null && !highlighting.isEmpty()) {
+                    String snippet = buildSnippet(highlighting, request.getHighlightOptions());
+                    resultBuilder.setSnippet(snippet);
+                } else {
+                    resultBuilder.setSnippet("");
+                }
             }
 
             responseBuilder.addResults(resultBuilder.build());
-        });
+        }
 
-        // Handle facets in response
+        // Handle facets
         if (solrResponse.getFacetFields() != null) {
-            for (FacetField facet : solrResponse.getFacetFields()) {
-                facet.getValues().forEach(value -> {
+            for (FacetField solrFacet : solrResponse.getFacetFields()) {
+                for (FacetField.Count count : solrFacet.getValues()) {
                     FacetResult facetResult = FacetResult.newBuilder()
-                            .setFacet(value.getName())
-                            .setFacetCount(value.getCount())
+                            .setFacet(count.getName())
+                            .setFacetCount(count.getCount())
                             .build();
-                    responseBuilder.putFacets(facet.getName(), facetResult);
-                });
+                    responseBuilder.putFacets(solrFacet.getName(), facetResult);
+                }
             }
         }
 
-        // Total results and query time
+        // Set total results and query time
         responseBuilder.setTotalResults(solrResponse.getResults().getNumFound());
         responseBuilder.setQTime(solrResponse.getQTime());
 
-        // Add timestamp
-        responseBuilder.setTimeOfSearch(Timestamp.newBuilder().setSeconds(System.currentTimeMillis() / 1000).build());
+        // Set timestamp
+        responseBuilder.setTimeOfSearch(Timestamp.newBuilder()
+                .setSeconds(System.currentTimeMillis() / 1000)
+                .build());
 
         return responseBuilder.build();
     }
 
-    private String getHighlightSnippet(SolrDocument doc, QueryResponse solrResponse) {
-        Map<String, Map<String, List<String>>> highlighting = solrResponse.getHighlighting();
-        if (highlighting != null) {
-            Map<String, List<String>> docHighlight = highlighting.get(doc.getFieldValue("id"));
-            if (docHighlight != null) {
-                // Iterate over keyword query fields to find the first highlight
-                for (String field : collectionConfig.getKeywordQueryFields()) {
-                    if (docHighlight.containsKey(field)) {
-                        return docHighlight.get(field).get(0);  // Get the first highlighted snippet
-                    }
-                }
-            }
+    /**
+     * Builds a snippet string from the highlighting information.
+     *
+     * @param highlighting     The highlighting map from Solr.
+     * @param highlightOptions The HighlightOptions from the SearchRequest.
+     * @return A concatenated snippet string.
+     */
+    private String buildSnippet(Map<String, List<String>> highlighting, HighlightOptions highlightOptions) {
+        List<String> snippets = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : highlighting.entrySet()) {
+            snippets.addAll(entry.getValue());
         }
-        return null;
+
+        // Join snippets with a separator
+        return String.join(" ... ", snippets);
     }
 
-    private String getMatchedSemanticSnippet(SolrDocument doc) {
-        // Assuming 'matchedSnippet' is the field that contains the matched text for semantic search
-        return doc.getFieldValue("matchedSnippet") != null ? doc.getFieldValue("matchedSnippet").toString() : "";
-    }
 
-    private void addFacetRanges(SearchRequest request, Map<String, String> params) {
-        request.getFacetRangesList().forEach(facetRange -> {
-            params.put("facet.range", facetRange.getField());
-
-            if (facetRange.hasStart()) {
-                params.put("f." + facetRange.getField() + ".facet.range.start", facetRange.getStart());
-            }
-            if (facetRange.hasEnd()) {
-                params.put("f." + facetRange.getField() + ".facet.range.end", facetRange.getEnd());
-            }
-            if (facetRange.hasGap()) {
-                params.put("f." + facetRange.getField() + ".facet.range.gap", facetRange.getGap());
-            }
-            if (facetRange.hasHardend()) {
-                params.put("f." + facetRange.getField() + ".facet.range.hardend", String.valueOf(facetRange.getHardend()));
-            }
-            if (facetRange.hasOther()) {
-                params.put("f." + facetRange.getField() + ".facet.range.other", facetRange.getOther());
-            }
-        });
-    }
 }

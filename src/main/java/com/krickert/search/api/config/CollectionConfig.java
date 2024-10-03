@@ -15,12 +15,16 @@ import java.util.Map;
 public class CollectionConfig {
 
     private final Map<String, VectorFieldInfo> vectorFields;
+
     @JsonProperty("collection-name")
     private String collectionName;
+
     @JsonProperty("keyword-query-fields")
     private List<String> keywordQueryFields;
 
-    // Constructor for injection
+    @JsonProperty("default-fields")
+    private List<String> defaultFields;
+
     public CollectionConfig(Map<String, VectorFieldInfo> vectorFields) {
         this.vectorFields = vectorFields;
     }
@@ -46,6 +50,14 @@ public class CollectionConfig {
         return vectorFields;
     }
 
+    public List<String> getDefaultFields() {
+        return defaultFields;
+    }
+
+    public void setDefaultFields(List<String> defaultFields) {
+        this.defaultFields = defaultFields;
+    }
+
     /**
      * Creates a reverse map from vector-field-name to VectorFieldInfo.
      *
@@ -53,11 +65,9 @@ public class CollectionConfig {
      */
     public Map<String, VectorFieldInfo> getVectorFieldsByName() {
         Map<String, VectorFieldInfo> reverseMap = new HashMap<>();
-        if (vectorFields != null) {
-            for (Map.Entry<String, VectorFieldInfo> entry : vectorFields.entrySet()) {
-                String vectorFieldName = entry.getValue().getVectorFieldName();
-                reverseMap.put(vectorFieldName, entry.getValue());
-            }
+        for (Map.Entry<String, VectorFieldInfo> entry : vectorFields.entrySet()) {
+            String vectorFieldName = entry.getValue().getVectorFieldName();
+            reverseMap.put(vectorFieldName, entry.getValue());
         }
         return reverseMap;
     }

@@ -1,24 +1,19 @@
 search-api:
-  vector-grpc-channel: ${sys:search-api.vector-grpc-channel} # Dynamically set via system property
+  vector-default:
+    vector-grpc-channel: ${sys:search-api.vector-grpc-channel} # Dynamically set via system property
+    vector-grpc-timeout: 5000 # Timeout for gRPC calls in milliseconds
   solr:
     url: ${sys:search-api.solr.url} # Dynamically set via system property
-    grpc-timeout: 5000 # Timeout for gRPC calls in milliseconds
     default-search:
       rows: 30
       sort: "score desc"
-    query-parsing:
-      enabled: true
-      default-query-type: semantic
-      parse-boosted-queries: true
-    caching:
-      enabled: true
-      ttl: 300
-    error-handling:
-      log-level: error
-      retry-attempts: 3
-    vector-configuration:
-      default-dimensions: 384
-      algorithm: "cosine"
+      search-type: semantic
+      debug: false
+      include-fields:
+        - title
+        - body
+      exclude-fields:
+        - body-paragraphs
     collection-config:
       collection-name: documents
       keyword-query-fields:

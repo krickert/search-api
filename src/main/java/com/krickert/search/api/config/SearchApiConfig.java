@@ -5,6 +5,8 @@ import com.google.common.base.MoreObjects;
 import io.micronaut.context.annotation.ConfigurationProperties;
 import io.micronaut.core.annotation.Introspected;
 
+import java.util.Collection;
+
 @ConfigurationProperties("search-api")
 @Introspected
 public class SearchApiConfig {
@@ -12,8 +14,8 @@ public class SearchApiConfig {
     @JsonProperty("solr")
     private SolrConfig solr;
 
-    @JsonProperty("vector-grpc-channel")
-    private String vectorGrpcChannel;
+    @JsonProperty("vector-default")
+    private VectorDefault vectorDefault;
 
     public SolrConfig getSolr() {
         return solr;
@@ -23,20 +25,33 @@ public class SearchApiConfig {
         this.solr = solr;
     }
 
-    public String getVectorGrpcChannel() {
-        return vectorGrpcChannel;
+    public VectorDefault getVectorDefault() {
+        return vectorDefault;
     }
 
-    public void setVectorGrpcChannel(String vectorGrpcChannel) {
-        this.vectorGrpcChannel = vectorGrpcChannel;
+    public void setVectorDefault(VectorDefault vectorDefault) {
+        this.vectorDefault = vectorDefault;
     }
+
+    public String toString() {
+        return MoreObjects.toStringHelper(this)
+                .add("solr", solr)
+                .add("vectorDefault", vectorDefault)
+                .toString();
+    }
+
     @ConfigurationProperties("solr")
     @Introspected
     public static class SolrConfig {
 
         private final CollectionConfig collectionConfig;
+
+        @JsonProperty("default-search")
+        private DefaultSearch defaultSearch;
+
         @JsonProperty("url")
         private String url;
+
         @JsonProperty("authentication")
         private Authentication authentication;
 
@@ -64,6 +79,13 @@ public class SearchApiConfig {
 
         public CollectionConfig getCollectionConfig() {
             return collectionConfig;
+        }
+
+        public DefaultSearch getDefaultSearch() {
+            return defaultSearch;
+        }
+        public void setDefaultSearch(DefaultSearch defaultSearch) {
+            this.defaultSearch = defaultSearch;
         }
 
         @Override
@@ -254,7 +276,103 @@ public class SearchApiConfig {
                 }
             }
         }
+
+        @ConfigurationProperties("default-search")
+        @Introspected
+        public static class DefaultSearch {
+            Integer rows;
+            String sort;
+            String searchType;
+            Boolean debug;
+            Collection<String> includeFields;
+            Collection<String> excludeFields;
+
+            public Integer getRows() {
+                return rows;
+            }
+
+            public void setRows(Integer rows) {
+                this.rows = rows;
+            }
+
+            public String getSort() {
+                return sort;
+            }
+
+            public void setSort(String sort) {
+                this.sort = sort;
+            }
+
+            public String getSearchType() {
+                return searchType;
+            }
+
+            public void setSearchType(String searchType) {
+                this.searchType = searchType;
+            }
+
+            public Boolean getDebug() {
+                return debug;
+            }
+
+            public void setDebug(Boolean debug) {
+                this.debug = debug;
+            }
+
+            public Collection<String> getIncludeFields() {
+                return includeFields;
+            }
+
+            public void setIncludeFields(Collection<String> includeFields) {
+                this.includeFields = includeFields;
+            }
+
+            public Collection<String> getExcludeFields() {
+                return excludeFields;
+            }
+            public void setExcludeFields(Collection<String> excludeFields) {
+                this.excludeFields = excludeFields;
+            }
+
+            @Override
+            public String toString() {
+                return MoreObjects.toStringHelper(this)
+                        .add("rows", rows)
+                        .add("sort", sort)
+                        .add("searchType", searchType)
+                        .add("debug", debug)
+                        .toString();
+            }
+        }
     }
 
+    @ConfigurationProperties("vector-default")
+    @Introspected
+    public static class VectorDefault {
+        private String vectorGrpcChannel;
+        private Integer vectorGrpcTimeout;
 
+        public String getVectorGrpcChannel() {
+            return vectorGrpcChannel;
+        }
+        public void setVectorGrpcChannel(String vectorGrpcChannel) {
+            this.vectorGrpcChannel = vectorGrpcChannel;
+        }
+
+        public Integer getVectorGrpcTimeout() {
+            return vectorGrpcTimeout;
+        }
+
+        public void setVectorGrpcTimeout(Integer vectorGrpcTimeout) {
+            this.vectorGrpcTimeout = vectorGrpcTimeout;
+        }
+
+        @Override
+        public String toString() {
+            return MoreObjects.toStringHelper(this)
+                    .add("vectorGrpcChannel", vectorGrpcChannel)
+                    .add("vectorGrpcTimeout", vectorGrpcTimeout)
+                    .toString();
+        }
+    }
 }

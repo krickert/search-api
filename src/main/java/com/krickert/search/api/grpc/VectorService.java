@@ -52,17 +52,16 @@ public class VectorService {
             throw new IllegalArgumentException("VectorFieldInfo cannot be null");
         }
 
-        return switch (vectorFieldInfo.getVectorFieldType()) {
-            case INLINE ->
-                // Inline vector query
-                    buildVectorQuery(vectorFieldInfo.getVectorFieldName(), embedding, topK);
-            case EMBEDDED_DOC ->
-                // Embedded document vector query
-                    buildEmbeddedDocJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), embedding, topK);
-            case CHILD_COLLECTION ->
-                // Child collection vector query
-                    buildExternalCollectionJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), vectorFieldInfo.getChunkCollection(), embedding, topK);
-        };
+        switch (vectorFieldInfo.getVectorFieldType()) {
+            case INLINE:
+                return buildVectorQuery(vectorFieldInfo.getVectorFieldName(), embedding, topK);
+            case EMBEDDED_DOC:
+                return buildEmbeddedDocJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), embedding, topK);
+            case CHILD_COLLECTION:
+                return buildExternalCollectionJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), vectorFieldInfo.getChunkCollection(), embedding, topK);
+            default:
+                throw new IllegalArgumentException("Unsupported VectorFieldType: " + vectorFieldInfo.getVectorFieldType());
+        }
     }
 
     /**
@@ -73,7 +72,7 @@ public class VectorService {
      * @param topK        The number of top results to fetch.
      * @return The vector query for the embedded document using a join to the parent.
      */
-    public String buildEmbeddedDocJoinQueryWithEmbedding(String vectorField, List<Float> embedding, int topK) {
+    private String buildEmbeddedDocJoinQueryWithEmbedding(String vectorField, List<Float> embedding, int topK) {
         String knnQuery = buildVectorQuery(vectorField, embedding, topK);
         // Parent-child join query for embedded document
         return String.format("{!parent which=type:parent}%s", knnQuery);
@@ -88,7 +87,7 @@ public class VectorService {
      * @param topK            The number of top results to fetch.
      * @return The vector query for the child collection using a join.
      */
-    public String buildExternalCollectionJoinQueryWithEmbedding(String vectorField, String chunkCollection, List<Float> embedding, int topK) {
+    private String buildExternalCollectionJoinQueryWithEmbedding(String vectorField, String chunkCollection, List<Float> embedding, int topK) {
         String knnQuery = buildVectorQuery(vectorField, embedding, topK);
         // External collection join query
         return String.format("{!join from=parent-id to=id fromIndex=%s}%s", chunkCollection, knnQuery);

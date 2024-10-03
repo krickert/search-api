@@ -3,6 +3,7 @@ package com.krickert.search.api.config;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.google.common.base.MoreObjects;
 import io.micronaut.context.annotation.EachProperty;
 import io.micronaut.core.annotation.Introspected;
 
@@ -77,5 +78,17 @@ public class VectorFieldInfo {
 
     public void setVectorGrpcService(String vectorGrpcService) {
         this.vectorGrpcService = vectorGrpcService;
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper(this)
+                .add("k", k)
+                .add("fieldName", fieldName)
+                .add("vectorFieldName", vectorFieldName)
+                .add("vectorFieldType", vectorFieldType)
+                .add("chunkCollection", chunkCollection)
+                .add("vectorGrpcService", vectorGrpcService)
+                .toString();
     }
 }

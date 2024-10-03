@@ -45,8 +45,6 @@ search-api:
     default-search:
       rows: 30
       sort: "score desc"
-    query-parsing:
-      enabled: true
       default-query-type: semantic
       parse-boosted-queries: true
     caching:

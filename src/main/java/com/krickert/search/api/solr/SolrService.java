@@ -14,6 +14,7 @@ import org.apache.solr.common.params.ModifiableSolrParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.io.IOException;
 
@@ -39,14 +40,21 @@ public class SolrService {
      * Executes a Solr query using POST method to prevent header size overrun.
      *
      * @param collection  The Solr collection name.
-     * @param queryParams The query parameters.
+     * @param queryParams The query parameters as a map of parameter names to their values.
+     *                    Each parameter can have multiple values.
      * @return The Solr QueryResponse.
      * @throws SolrServerException If a Solr error occurs.
      * @throws IOException         If an I/O error occurs.
      */
-    public QueryResponse query(String collection, Map<String, String> queryParams) throws SolrServerException, IOException {
+    public QueryResponse query(String collection, Map<String, List<String>> queryParams) throws SolrServerException, IOException {
         ModifiableSolrParams params = new ModifiableSolrParams();
-        queryParams.forEach(params::set);
+
+        // Add all parameters, supporting multiple values for the same key
+        for (Map.Entry<String, List<String>> entry : queryParams.entrySet()) {
+            String key = entry.getKey();
+            List<String> values = entry.getValue();
+            params.add(key, values.toArray(new String[0]));
+        }
 
         // Create a QueryRequest with the parameters
         QueryRequest request = new QueryRequest(params);
