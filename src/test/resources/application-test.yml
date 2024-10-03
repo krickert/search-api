@@ -16,7 +16,7 @@ search-test:
 
 search-api:
   vector-default:
-    vector-grpc-channel: ${sys:test-val} # Dynamically set via system property
+    vector-grpc-channel: ${sys:search-api.vector-grpc-channel} # Dynamically set via system property
     vector-grpc-display-name: all-Mini-LM-embeddings-384
   solr:
     url: dummy-value-auto-generated
