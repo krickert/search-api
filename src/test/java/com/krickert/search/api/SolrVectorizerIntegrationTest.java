@@ -38,8 +38,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -89,7 +87,7 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
         // Set the dynamic port property in the application context
         context.getEnvironment().addPropertySource(PropertySource.of(
                 "test",
-                Collections.singletonMap("search-api.vector-grpc-channel", "http://localhost:" + vectorizerPort)
+                Collections.singletonMap("search-api.vector-default.vector-grpc-channel", "http://localhost:" + vectorizerPort)
         ));
 
         // Logging for debugging
