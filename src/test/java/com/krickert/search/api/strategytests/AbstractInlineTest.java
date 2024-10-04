@@ -267,12 +267,32 @@ public abstract class AbstractInlineTest extends AbstractSolrTest {
         assertNotNull(response.getResultsList(), testDescription + " results list should not be null");
         assertFalse(response.getResultsList().isEmpty(), testDescription + " results should not be empty");
 
-        // Log results
-        log.info("==== {} ====", testDescription);
-        response.getResultsList().forEach(result -> log.info("Found document ID: {}, Snippet: {}", result.getId(), StringUtils.truncate(result.getSnippet(), 100)));
+        log.info("=== {} ===", testDescription);
+        log.info("Total Results: {}", response.getTotalResults());
+        log.info("Query Time: {} ms", response.getQTime());
 
-        // Optionally, print the entire response in JSON format for debugging
+        for (SearchResult result : response.getResultsList()) {
+            log.debug("Document ID: {}", result.getId());
+            log.debug("Snippet: {}", result.getSnippet());
+            log.debug("Matched Text: {}", result.getMatchedTextList());
+            log.debug("Fields: {}", result.getFieldsMap());
+        }
+
+        // Optionally, validate facets if applicable
+        if (!response.getFacetsMap().isEmpty()) {
+            log.debug("Facets:");
+            for (Map.Entry<String, FacetResults> facetEntry : response.getFacetsMap().entrySet()) {
+                log.debug("Facet Field: {}", facetEntry.getKey());
+                for (FacetResult facetResult : facetEntry.getValue().getResultsList()) {
+                    log.debug("  Facet: {}, Count: {}", facetResult.getFacet(), facetResult.getFacetCount());
+                }
+            }
+        }
+         // Optionally, print the entire response in JSON format for debugging
         String jsonResponse = JsonFormat.printer().includingDefaultValueFields().print(response);
         log.debug("{} Response:\n{}", testDescription, jsonResponse);
+        log.info("=======================");
     }
+
+
 }

@@ -30,22 +30,49 @@ public class SemanticQueryBuilder {
         this.collectionConfig = collectionConfig;
     }
 
-    public void addSemanticParams(SemanticOptions semanticOptions, SearchRequest request, Map<String, List<String>> params) {
+    /**
+     * Builds and returns the semantic query string based on the SemanticOptions.
+     *
+     * @param semanticOptions The semantic search options.
+     * @param request         The search request.
+     * @return The semantic query string.
+     */
+    public String buildSemanticQuery(SemanticOptions semanticOptions, SearchRequest request) {
         List<VectorFieldInfo> vectorFieldsToUse = determineVectorFields(semanticOptions);
-
-        // Retrieve the embedding for the query text
         List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
 
         // Build vector queries for each vector field
-        List<String> vectorQueries = vectorFieldsToUse.stream()
+        return vectorFieldsToUse.stream()
                 .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK()))
-                .collect(Collectors.toList());
+                .collect(Collectors.joining(" OR "));
+    }
 
-        // Combine vector queries using logical operators
-        String combinedVectorQuery = String.join(" OR ", vectorQueries);
-        params.put("q", Collections.singletonList(combinedVectorQuery));
+    /**
+     * Builds and returns the semantic boost query string based on the SemanticOptions and boost factor.
+     *
+     * @param semanticOptions The semantic search options.
+     * @param request         The search request.
+     * @param boost           The boost factor.
+     * @return The semantic boost query string.
+     */
+    public String buildSemanticBoostQuery(SemanticOptions semanticOptions, SearchRequest request, float boost) {
+        List<VectorFieldInfo> vectorFieldsToUse = determineVectorFields(semanticOptions);
+        List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
 
-        // Handle similarity options
+        // Build boost vector queries for each vector field
+        return vectorFieldsToUse.stream()
+                .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK()) + "^" + boost)
+                .collect(Collectors.joining(" "));
+    }
+
+    /**
+     * Handles similarity options, adding them to the params map.
+     *
+     * @param semanticOptions The semantic search options.
+     * @param request         The search request.
+     * @param params          The Solr query parameters map.
+     */
+    public void handleSimilarityOptions(SemanticOptions semanticOptions, SearchRequest request, Map<String, List<String>> params) {
         SimilarityOptions similarity = semanticOptions.hasSimilarity() ? semanticOptions.getSimilarity() : SimilarityOptions.getDefaultInstance();
 
         if (similarity.hasMinReturn()) {
@@ -68,7 +95,7 @@ public class SemanticQueryBuilder {
             }
         }
 
-        log.debug("Semantic search parameters set: {}", params);
+        log.debug("Similarity options applied: {}", similarity);
     }
 
     private List<VectorFieldInfo> determineVectorFields(SemanticOptions semanticOptions) {
@@ -93,5 +120,4 @@ public class SemanticQueryBuilder {
             return vectorFields;
         }
     }
-
 }

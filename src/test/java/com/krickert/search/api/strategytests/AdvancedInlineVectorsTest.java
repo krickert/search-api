@@ -23,15 +23,23 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
                 .setQuery(queryText)
                 .setNumResults(50)
                 .setStrategy(SearchStrategyOptions.newBuilder()
-                        .setSemantic(SemanticOptions.newBuilder()
-                                .setTopK(50)
-                                .addVectorFields("title-vector")
-                                .addVectorFields( "body-vector")
+                        .setOperator(LogicalOperator.AND) // Combine strategies using AND
+                        .addStrategies(SearchStrategy.newBuilder()
+                                .setType(StrategyType.SEMANTIC)
+                                .setSemantic(SemanticOptions.newBuilder()
+                                        .setTopK(50)
+                                        .addVectorFields("title-vector")
+                                        .addVectorFields("body-vector")
+                                        .build())
+                                .setBoost(1.0f) // Optional: Set boost factor for semantic strategy
                                 .build())
-                        .setKeyword(KeywordOptions.newBuilder()
-                                .setBoostWithSemantic(true)
+                        .addStrategies(SearchStrategy.newBuilder()
+                                .setType(StrategyType.KEYWORD)
+                                .setKeyword(KeywordOptions.newBuilder()
+                                        .setBoostWithSemantic(true) // Enable semantic boosting for keyword strategy
+                                        .build())
+                                .setBoost(1.2f) // Optional: Set boost factor for keyword strategy
                                 .build())
-                        .setOperator(LogicalOperator.AND)
                         .build())
                 .addFilterQueries("type:document")
                 .setSort(SortOptions.newBuilder()
@@ -40,7 +48,7 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
                         .build())
                 .setHighlightOptions(HighlightOptions.newBuilder()
                         .addFields("title")
-                        .addFields( "body")
+                        .addFields("body")
                         .setPreTag("<strong>")
                         .setPostTag("</strong>")
                         .setSnippetCount(2)
@@ -49,9 +57,13 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
                         .build())
                 .build();
 
+        // Execute the search request
         SearchResponse combinedResponse = searchServiceStub.search(combinedSearchRequest);
+
+        // Validate and log the response
         validateAndLogResponse("Combined Semantic and Keyword Search Results", combinedResponse);
 
         // Additional assertions can be added here based on expected outcomes
     }
+
 }

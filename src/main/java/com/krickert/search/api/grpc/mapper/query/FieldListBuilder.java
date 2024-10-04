@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -21,6 +22,7 @@ public class FieldListBuilder {
     public FieldListBuilder(SearchApiConfig searchApiConfig) {
         this.searchApiConfig = checkNotNull(searchApiConfig);
     }
+
     public String handleFieldList(SearchRequest request, Map<String, List<String>> params) {
         String fl;
         if (request.hasFieldList()) {

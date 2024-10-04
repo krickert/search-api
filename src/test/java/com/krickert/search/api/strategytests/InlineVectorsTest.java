@@ -35,7 +35,13 @@ public class InlineVectorsTest extends AbstractInlineTest {
                 .setQuery(queryText)
                 .setNumResults(30)
                 .setStrategy(SearchStrategyOptions.newBuilder()
-                        .setKeyword(KeywordOptions.newBuilder().setBoostWithSemantic(false).build())
+                        .setOperator(LogicalOperator.OR) // Logical operator can be OR or AND based on requirements
+                        .addStrategies(SearchStrategy.newBuilder()
+                                .setType(StrategyType.KEYWORD)
+                                .setKeyword(KeywordOptions.newBuilder()
+                                        .setBoostWithSemantic(false) // No semantic boost for pure keyword search
+                                        .build())
+                                .build())
                         .build())
                 .build();
 
@@ -47,9 +53,13 @@ public class InlineVectorsTest extends AbstractInlineTest {
                 .setQuery(queryText)
                 .setNumResults(30)
                 .setStrategy(SearchStrategyOptions.newBuilder()
-                        .setSemantic(SemanticOptions.newBuilder()
-                                .setTopK(30)
-                                .addVectorFields("title-vector")
+                        .setOperator(LogicalOperator.OR)
+                        .addStrategies(SearchStrategy.newBuilder()
+                                .setType(StrategyType.SEMANTIC)
+                                .setSemantic(SemanticOptions.newBuilder()
+                                        .setTopK(30)
+                                        .addVectorFields("title-vector")
+                                        .build())
                                 .build())
                         .build())
                 .build();
@@ -62,9 +72,13 @@ public class InlineVectorsTest extends AbstractInlineTest {
                 .setQuery(queryText)
                 .setNumResults(30)
                 .setStrategy(SearchStrategyOptions.newBuilder()
-                        .setSemantic(SemanticOptions.newBuilder()
-                                .setTopK(30)
-                                .addVectorFields("body-vector")
+                        .setOperator(LogicalOperator.OR)
+                        .addStrategies(SearchStrategy.newBuilder()
+                                .setType(StrategyType.SEMANTIC)
+                                .setSemantic(SemanticOptions.newBuilder()
+                                        .setTopK(30)
+                                        .addVectorFields("body-vector")
+                                        .build())
                                 .build())
                         .build())
                 .build();
@@ -77,8 +91,21 @@ public class InlineVectorsTest extends AbstractInlineTest {
                 .setQuery(queryText)
                 .setNumResults(30)
                 .setStrategy(SearchStrategyOptions.newBuilder()
-                        .setKeyword(KeywordOptions.newBuilder()
-                                .setBoostWithSemantic(true)
+                        .setOperator(LogicalOperator.OR)
+                        .addStrategies(SearchStrategy.newBuilder()
+                                .setType(StrategyType.KEYWORD)
+                                .setKeyword(KeywordOptions.newBuilder()
+                                        .setBoostWithSemantic(true) // Enable semantic boosting
+                                        .build())
+                                .setBoost(1.5f) // Example boost factor
+                                .build())
+                        .addStrategies(SearchStrategy.newBuilder()
+                                .setType(StrategyType.SEMANTIC)
+                                .setSemantic(SemanticOptions.newBuilder()
+                                        .setTopK(30)
+                                        .addVectorFields("title-vector") // You can choose relevant vector fields
+                                        .build())
+                                .setBoost(1.2f) // Additional boost factor if needed
                                 .build())
                         .build())
                 .build();
@@ -86,4 +113,5 @@ public class InlineVectorsTest extends AbstractInlineTest {
         SearchResponse boostedResponse = searchServiceStub.search(boostedSearchRequest);
         validateAndLogResponse("Boosted Keyword Search Results", boostedResponse);
     }
+
 }

@@ -39,7 +39,7 @@ public class ResponseMapper {
             }
 
             // Dynamically add fields based on 'fl' parameter
-            for (String field : includedFields) {
+            for (String field : doc.getFieldNames()) {
                 Object value = doc.getFieldValue(field);
                 if (value != null) {
                     resultBuilder.putFields(field, value.toString());
@@ -47,7 +47,7 @@ public class ResponseMapper {
             }
 
             // Add snippets (highlighting)
-            if (request.hasHighlightOptions() && idObj != null) {
+            if (solrResponse.getHighlighting() != null && solrResponse.getHighlighting().size() > 1 && idObj != null) {
                 Map<String, List<String>> highlighting = solrResponse.getHighlighting().get(idObj.toString());
                 if (highlighting != null && !highlighting.isEmpty()) {
                     String snippet = buildSnippet(highlighting);

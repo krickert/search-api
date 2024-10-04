@@ -1,6 +1,7 @@
 package com.krickert.search.api.grpc.mapper.query;
 
 import com.krickert.search.api.HighlightOptions;
+import com.krickert.search.api.LogicalOperator;
 import com.krickert.search.api.SearchRequest;
 import jakarta.inject.Singleton;
 import org.apache.solr.common.params.HighlightParams;
@@ -16,8 +17,8 @@ import static io.micronaut.core.util.StringUtils.isNotEmpty;
 @Singleton
 public class HighlighterQueryBuilder {
     private static final Logger log = LoggerFactory.getLogger(HighlighterQueryBuilder.class);
-    
-    public void enableHighlighting(SearchRequest request, Map<String, List<String>> params) {
+
+    public void enableHighlighting(SearchRequest request, Map<String, List<String>> params, LogicalOperator operator) {
         HighlightOptions highlight = request.hasHighlightOptions() ? request.getHighlightOptions() : HighlightOptions.getDefaultInstance();
 
         params.put(HighlightParams.HIGHLIGHT, Collections.singletonList("true"));
@@ -31,19 +32,19 @@ public class HighlighterQueryBuilder {
         }
 
         params.put(HighlightParams.SIMPLE_PRE, Collections.singletonList(
-            isNotEmpty(highlight.getPreTag()) ? highlight.getPreTag() : "<em>"
+                !highlight.getPreTag().isEmpty() ? highlight.getPreTag() : "<em>"
         ));
 
         params.put(HighlightParams.SIMPLE_POST, Collections.singletonList(
-            isNotEmpty(highlight.getPostTag()) ? highlight.getPostTag() : "</em>"
+                !highlight.getPostTag().isEmpty() ? highlight.getPostTag() : "</em>"
         ));
 
         params.put(HighlightParams.SNIPPETS, Collections.singletonList(
-            highlight.getSnippetCount() > 0 ? String.valueOf(highlight.getSnippetCount()) : "1"
+                highlight.getSnippetCount() > 0 ? String.valueOf(highlight.getSnippetCount()) : "1"
         ));
 
         params.put(HighlightParams.FRAGSIZE, Collections.singletonList(
-            highlight.getSnippetSize() > 0 ? String.valueOf(highlight.getSnippetSize()) : "100"
+                highlight.getSnippetSize() > 0 ? String.valueOf(highlight.getSnippetSize()) : "100"
         ));
 
         // Handle semantic-specific highlighting if applicable
