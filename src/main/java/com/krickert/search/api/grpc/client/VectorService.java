@@ -99,7 +99,7 @@ public class VectorService {
      */
     private String buildVectorQuery(String field, List<Float> embeddings, int topK) {
         String vectorString = embeddings.stream()
-                .map(String::valueOf)
+                .map(embedding -> String.format("%.6f", embedding)) // Format floats
                 .collect(Collectors.joining(","));
 
         return String.format("{!knn f=%s topK=%d}[%s]", field, topK, vectorString);

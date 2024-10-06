@@ -23,41 +23,46 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
                 .setQuery(queryText)
                 .setNumResults(50)
                 .setStrategy(SearchStrategyOptions.newBuilder()
-                        .setOperator(LogicalOperator.AND) // Combine strategies using AND
+                        .setOperator(LogicalOperator.AND) // Combine strategies with AND
                         .addStrategies(SearchStrategy.newBuilder()
-                                .setType(StrategyType.SEMANTIC)
+                                .setType(StrategyType.SEMANTIC) // First strategy: SEMANTIC
                                 .setSemantic(SemanticOptions.newBuilder()
                                         .setTopK(50)
                                         .addVectorFields("title-vector")
                                         .addVectorFields("body-vector")
                                         .build())
-                                .setBoost(1.0f) // Optional: Set boost factor for semantic strategy
+                                .setBoost(1.2f) // Optional: Boost factor for SEMANTIC
                                 .build())
                         .addStrategies(SearchStrategy.newBuilder()
-                                .setType(StrategyType.KEYWORD)
+                                .setType(StrategyType.KEYWORD) // Second strategy: KEYWORD
                                 .setKeyword(KeywordOptions.newBuilder()
-                                        .setBoostWithSemantic(true) // Enable semantic boosting for keyword strategy
+                                        .setBoostWithSemantic(true) // Enable semantic boosting
                                         .build())
-                                .setBoost(1.2f) // Optional: Set boost factor for keyword strategy
+                                .setBoost(1.5f) // Optional: Boost factor for KEYWORD
                                 .build())
                         .build())
-                .addFilterQueries("type:document")
+                .addFilterQueries("type:ARTICLE") // Apply filter query
                 .setSort(SortOptions.newBuilder()
-                        .setSortType(SortType.SCORE)
-                        .setSortOrder(SortOrder.DESC)
+                        .setSortType(SortType.SCORE) // Sort by score
+                        .setSortOrder(SortOrder.DESC) // Descending order
                         .build())
                 .setHighlightOptions(HighlightOptions.newBuilder()
-                        .addFields("title")
+                        .addFields("title") // Fields to highlight
                         .addFields("body")
-                        .setPreTag("<strong>")
-                        .setPostTag("</strong>")
-                        .setSnippetCount(2)
-                        .setSnippetSize(150)
-                        .setSemanticHighlight(true)
+                        .setPreTag("<strong>") // Pre-tag for highlights
+                        .setPostTag("</strong>") // Post-tag for highlights
+                        .setSnippetCount(2) // Number of snippets per field
+                        .setSnippetSize(150) // Size of each snippet
+                        .setSemanticHighlight(true) // Enable semantic-specific highlighting
+                        .build())
+                .setFieldList(FieldList.newBuilder()
+                        .addInclusionFields("id") // Example: Include 'id' field
+                        .addInclusionFields("title") // Include 'title' field
+                        .addExclusionFields("body") // Example: Exclude 'body' field if needed
                         .build())
                 .build();
 
-        // Execute the search request
+        // Execute the search request using the gRPC stub
         SearchResponse combinedResponse = searchServiceStub.search(combinedSearchRequest);
 
         // Validate and log the response

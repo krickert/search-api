@@ -35,3 +35,9 @@ search-api:
 
 search-test:
   use-cached-vectors: false
+
+
+logging:
+  level:
+    io.micronaut.context.env: DEBUG
+    com.krickert.search.api.solr.SolrService: DEBUG

@@ -61,7 +61,7 @@ public class SemanticQueryBuilder {
 
         // Build boost vector queries for each vector field
         return vectorFieldsToUse.stream()
-                .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK()) + "^" + boost)
+                .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK()))
                 .collect(Collectors.joining(" "));
     }
 

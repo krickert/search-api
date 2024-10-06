@@ -42,7 +42,9 @@ public class ResponseMapper {
             for (String field : doc.getFieldNames()) {
                 Object value = doc.getFieldValue(field);
                 if (value != null) {
-                    resultBuilder.putFields(field, value.toString());
+                    if (request.hasFieldList() && !request.getFieldList().getExclusionFieldsList().contains(field)) {
+                        resultBuilder.putFields(field, value.toString());
+                    }
                 }
             }
 
@@ -81,10 +83,7 @@ public class ResponseMapper {
         if (fl != null && !fl.isEmpty()) {
             String[] flParts = fl.split(",");
             for (String field : flParts) {
-                field = field.trim();
-                if (!field.startsWith("-")) {
-                    includedFields.add(field);
-                }
+                includedFields.add(field.trim());
             }
         }
         return includedFields;

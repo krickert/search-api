@@ -37,14 +37,6 @@ public class FieldListBuilder {
                 flParts.addAll(inclusionFields);
             }
 
-            // Add exclusion fields with '-' prefix
-            if (!exclusionFields.isEmpty()) {
-                List<String> excluded = exclusionFields.stream()
-                        .map(field -> "-" + field)
-                        .toList();
-                flParts.addAll(excluded);
-            }
-
             // Detect conflicts (fields in both inclusion and exclusion)
             Set<String> includedSet = new HashSet<>(inclusionFields);
             Set<String> excludedSet = new HashSet<>(exclusionFields);
@@ -53,7 +45,6 @@ public class FieldListBuilder {
                 log.warn("Fields {} are both included and excluded. They will be excluded.", includedSet);
                 // Remove conflicting fields from inclusion
                 flParts.removeAll(includedSet);
-                excludedSet.forEach(field -> flParts.add("-" + field));
             }
 
             fl = String.join(",", flParts);
