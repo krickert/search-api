@@ -11,27 +11,28 @@ search-api:
       debug: false
       include-fields:
         - title
-        - body
+        - id
       exclude-fields:
         - body-paragraphs
+        - body
     collection-config:
       collection-name: documents
-      keyword-query-fields:
-        - body
-        - title
+      keyword-query-fields: #the default fields solr is going to use
+        - body # search on the keyword field "body"
+        - title # search on the keyword field "title"
       vector-fields:
         bodyVectorField:
-          field-name: body
-          vector-field-name: body-vector
-          vector-field-type: inline
-          vector-grpc-service: http://localhost:50401/vectorizer
-          k: 10
+          field-name: body # corresponding field for vector
+          vector-field-name: body-vector # name of the vector field
+          vector-field-type: inline #the type of vector we are searching.  inline, embedded_doc, and child_collection are the valid options
+          vector-grpc-service: http://localhost:50401/vectorizer # in case there's another instance of a vectorizer instead of default
+          k: 10 # the default k-value.  Do not change this if you don't know what you're doing
         titleVectorField:
-          field-name: title
-          vector-field-name: title-vector
-          vector-field-type: inline
-          vector-grpc-service: http://localhost:50401/vectorizer
-          k: 10
+          field-name: title #corredponding field the vector was calculated with
+          vector-field-name: title-vector # the name of the vector field itself
+          vector-field-type: inline # the type of vector for search. inline, embedded_doc, and child_collection are the valid values
+          vector-grpc-service: http://localhost:50401/vectorizer #override value of the vectorizer, optional
+          k: 10 #default k value to use for this field
 
 search-test:
   use-cached-vectors: false

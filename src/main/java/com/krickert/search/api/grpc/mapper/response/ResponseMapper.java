@@ -20,13 +20,10 @@ public class ResponseMapper {
         this.facetProcessor = facetProcessor;
     }
 
-    public SearchResponse mapToSearchResponse(QueryResponse solrResponse, SearchRequest request, String fl) {
+    public SearchResponse mapToSearchResponse(QueryResponse solrResponse, SearchRequest request) {
         log.debug("mapping search response for search {}", request);
 
         SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
-
-        // Determine the list of fields to include based on 'fl' parameter
-        Set<String> includedFields = extractIncludedFields(fl);
 
         // Map Solr documents to SearchResult
         for (SolrDocument doc : solrResponse.getResults()) {

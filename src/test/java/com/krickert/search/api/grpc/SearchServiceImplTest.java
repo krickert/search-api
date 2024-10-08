@@ -92,7 +92,7 @@ class SearchServiceImplTest {
         expectedParams.put("rows", Collections.singletonList("10"));
         expectedParams.put("fl", Collections.singletonList("id,title,description"));
 
-        SolrQueryData solrQueryData = new SolrQueryData(expectedParams, "id,title,description");
+        SolrQueryData solrQueryData = new SolrQueryData(expectedParams);
         when(solrQueryBuilder.buildSolrQueryParams(any())).thenReturn(solrQueryData);
 
         // Mock FacetProcessor to return empty facets (no facets in this basic test)
@@ -111,7 +111,7 @@ class SearchServiceImplTest {
                 .build();
 
         // Configure the ResponseMapper to return the mockSearchResponse
-        when(responseMapper.mapToSearchResponse(any(), any(), any())).thenReturn(mockSearchResponse);
+        when(responseMapper.mapToSearchResponse(any(), any()));
 
         // Create a search request with only query text
         SearchRequest request = SearchRequest.newBuilder()
@@ -190,7 +190,7 @@ class SearchServiceImplTest {
         expectedParams.put("f.type.facet.limit", Collections.singletonList("10"));
         expectedParams.put("f.type.facet.missing", Collections.singletonList("true"));
 
-        SolrQueryData solrQueryData = new SolrQueryData(expectedParams, "id,title,description");
+        SolrQueryData solrQueryData = new SolrQueryData(expectedParams);
         when(solrQueryBuilder.buildSolrQueryParams(any())).thenReturn(solrQueryData);
 
         // Mock FacetProcessor to return processed facets
@@ -222,7 +222,7 @@ class SearchServiceImplTest {
                 .build();
 
         // Configure the ResponseMapper to return the mockSearchResponse
-        when(responseMapper.mapToSearchResponse(any(), any(), any())).thenReturn(mockSearchResponse);
+        when(responseMapper.mapToSearchResponse(any(), any())).thenReturn(mockSearchResponse);
 
         // Create a search request with query text and facets
         SearchRequest request = SearchRequest.newBuilder()

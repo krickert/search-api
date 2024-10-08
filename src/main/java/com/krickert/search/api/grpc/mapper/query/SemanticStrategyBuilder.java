@@ -20,12 +20,12 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 @Singleton
-public class SemanticQueryBuilder {
-    private static final Logger log = LoggerFactory.getLogger(SemanticQueryBuilder.class);
+public class SemanticStrategyBuilder {
+    private static final Logger log = LoggerFactory.getLogger(SemanticStrategyBuilder.class);
     private final VectorService vectorService;
     private final CollectionConfig collectionConfig;
 
-    public SemanticQueryBuilder(VectorService vectorService, CollectionConfig collectionConfig) {
+    public SemanticStrategyBuilder(VectorService vectorService, CollectionConfig collectionConfig) {
         this.vectorService = checkNotNull(vectorService);
         this.collectionConfig = collectionConfig;
     }
@@ -35,34 +35,22 @@ public class SemanticQueryBuilder {
      *
      * @param semanticOptions The semantic search options.
      * @param request         The search request.
+     * @param params
      * @return The semantic query string.
      */
-    public String buildSemanticQuery(SemanticOptions semanticOptions, SearchRequest request) {
+    public String buildSemanticQuery(SemanticOptions semanticOptions, SearchRequest request, float boost, Map<String, List<String>> params) {
         List<VectorFieldInfo> vectorFieldsToUse = determineVectorFields(semanticOptions);
         List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
+        String vectorString = "[" + queryEmbedding.stream()
+                .map(embedding -> String.format("%.6f", embedding)) // Format floats
+                .collect(Collectors.joining(",")) + "]";
+        params.put("vector", Collections.singletonList(vectorString));
 
         // Build vector queries for each vector field
         return vectorFieldsToUse.stream()
-                .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK()))
+                .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding,
+                        semanticOptions.getTopK(), boost))
                 .collect(Collectors.joining(" OR "));
-    }
-
-    /**
-     * Builds and returns the semantic boost query string based on the SemanticOptions and boost factor.
-     *
-     * @param semanticOptions The semantic search options.
-     * @param request         The search request.
-     * @param boost           The boost factor.
-     * @return The semantic boost query string.
-     */
-    public String buildSemanticBoostQuery(SemanticOptions semanticOptions, SearchRequest request, float boost) {
-        List<VectorFieldInfo> vectorFieldsToUse = determineVectorFields(semanticOptions);
-        List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
-
-        // Build boost vector queries for each vector field
-        return vectorFieldsToUse.stream()
-                .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK()))
-                .collect(Collectors.joining(" "));
     }
 
     /**

@@ -38,8 +38,7 @@ public class InlineVectorsTest extends AbstractInlineTest {
                         .setOperator(LogicalOperator.OR) // Logical operator can be OR or AND based on requirements
                         .addStrategies(SearchStrategy.newBuilder()
                                 .setType(StrategyType.KEYWORD)
-                                .setKeyword(KeywordOptions.newBuilder()
-                                        .setBoostWithSemantic(false) // No semantic boost for pure keyword search
+                                .setKeyword(KeywordOptions.newBuilder() // No semantic boost for pure keyword search
                                         .build())
                                 .build())
                         .build())
@@ -94,8 +93,7 @@ public class InlineVectorsTest extends AbstractInlineTest {
                         .setOperator(LogicalOperator.OR)
                         .addStrategies(SearchStrategy.newBuilder()
                                 .setType(StrategyType.KEYWORD)
-                                .setKeyword(KeywordOptions.newBuilder()
-                                        .setBoostWithSemantic(true) // Enable semantic boosting
+                                .setKeyword(KeywordOptions.newBuilder() // Enable semantic boosting
                                         .build())
                                 .setBoost(1.5f) // Example boost factor
                                 .build())

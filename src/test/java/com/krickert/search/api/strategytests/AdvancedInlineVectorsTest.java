@@ -36,12 +36,11 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
                         .addStrategies(SearchStrategy.newBuilder()
                                 .setType(StrategyType.KEYWORD) // Second strategy: KEYWORD
                                 .setKeyword(KeywordOptions.newBuilder()
-                                        .setBoostWithSemantic(true) // Enable semantic boosting
                                         .build())
                                 .setBoost(1.5f) // Optional: Boost factor for KEYWORD
                                 .build())
                         .build())
-                .addFilterQueries("type:ARTICLE") // Apply filter query
+                .addFilterQueries("document_type:ARTICLE") // Apply filter query
                 .setSort(SortOptions.newBuilder()
                         .setSortType(SortType.SCORE) // Sort by score
                         .setSortOrder(SortOrder.DESC) // Descending order
