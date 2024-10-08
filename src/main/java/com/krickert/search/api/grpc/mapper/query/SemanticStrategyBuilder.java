@@ -46,7 +46,8 @@ public class SemanticStrategyBuilder {
         String vectorString = "[" + queryEmbedding.stream()
                 .map(embedding -> String.format("%.6f", embedding))
                 .collect(Collectors.joining(",")) + "]";
-        params.put("vector", Collections.singletonList(vectorString));
+        String vectorVariable = String.format("vectorQuery_%d", params.size() + 1);
+        params.put(vectorVariable, Collections.singletonList(vectorString));
 
         // Create vector queries for each vector field
         return vectorFieldsToUse.stream()

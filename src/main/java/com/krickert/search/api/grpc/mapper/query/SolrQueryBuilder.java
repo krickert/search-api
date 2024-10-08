@@ -66,7 +66,7 @@ public class SolrQueryBuilder {
         } else {
             // Default to keyword-only search if no strategy is specified
             KeywordOptions defaultKeywordOptions = getDefaultKeywordOptions();
-            String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(defaultKeywordOptions, request, 1.0f, params, new AtomicInteger(0));
+            String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(defaultKeywordOptions, request, 1.0f, params);
             params.put("q", Collections.singletonList("*:*"));
             params.put("bq", Collections.singletonList(keywordQuery));
         }
@@ -106,9 +106,9 @@ public class SolrQueryBuilder {
 
     private static void addFilterQueriesToRequest(SearchRequest request, Map<String, List<String>> params) {
         if (!request.getFilterQueriesList().isEmpty()) {
-            int tagNum = 0;
+            AtomicInteger tagNum = new AtomicInteger();
             List<String> taggedFqQueries = request.getFilterQueriesList().stream()
-                    .map(fq -> String.format("{!tag=fq_tag%s}%s", tagNum, fq))  // Add a tag to each fq for selective pre-filtering
+                    .map(fq -> String.format("{!tag=fq_tag%s}%s", tagNum.getAndIncrement(), fq))  // Add a tag to each fq for selective pre-filtering
                     .collect(Collectors.toList());
             params.put("fq", taggedFqQueries);
         }
@@ -123,12 +123,10 @@ public class SolrQueryBuilder {
 
     private List<String> createQueriesFromStrategies(SearchRequest request, SearchStrategyOptions strategyOptions, Map<String, List<String>> params) {
         List<String> mainQueries = new ArrayList<>();
-        AtomicInteger counter = new AtomicInteger(0);
         for (SearchStrategy strategy : strategyOptions.getStrategiesList()) {
             switch (strategy.getType()) {
                 case KEYWORD -> {
-                    String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(strategy.getKeyword(), request, strategy.getBoost(),
-                            params, counter);
+                    String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(strategy.getKeyword(), request, strategy.getBoost(), params);
                     mainQueries.add(keywordQuery);
                 }
                 case SEMANTIC -> {

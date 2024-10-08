@@ -1,22 +1,15 @@
-// ========================
-// KeywordStrategyBuilder
-// ========================
-
 package com.krickert.search.api.grpc.mapper.query;
 
 import com.google.common.collect.Lists;
 import com.krickert.search.api.KeywordOptions;
 import com.krickert.search.api.SearchRequest;
 import com.krickert.search.api.config.CollectionConfig;
-import io.micronaut.core.util.CollectionUtils;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.solr.client.solrj.util.ClientUtils.escapeQueryChars;
@@ -38,22 +31,21 @@ public class KeywordStrategyBuilder {
      * @param request        The search request.
      * @return The keyword query string.
      */
-    public String buildKeywordQuery(KeywordOptions keywordOptions, SearchRequest request, float boost,
-                                    Map<String, List<String>> params, AtomicInteger counter) {
+    public String buildKeywordQuery(KeywordOptions keywordOptions, SearchRequest request, float boost, Map<String, List<String>> params) {
         final String query = findQuery(keywordOptions, request);
         List<String> fieldsToUse = findQueryFields(keywordOptions);
         String escapedQuery = escapeQueryChars(query);
-        int keywordQueryCounter = counter.incrementAndGet();
-        String keywordQueryName = "keywordQuery_" + keywordQueryCounter;
-        // Define the keyword query as a variable
-        String keywordQueryVariable = String.format("%s=%s", keywordQueryName, escapedQuery);
-        params.put(keywordQueryName, List.of(escapedQuery));
+
+        // Define the keyword query as a variable with unique key
+        String keywordQueryVariable = String.format("keywordQuery_%d=%s", params.size() + 1, escapedQuery);
+        params.put(keywordQueryVariable, List.of(escapedQuery));
 
         // Build the edismax query to be used as a boost or main query
         String boostFactor = (boost > 0.0f) ? "^" + boost : "";
-        String eDismaxQuery = String.format("{!edismax q.op=%s qf=\"%s\" v=$" + keywordQueryName + "}%s",
+        String eDismaxQuery = String.format("{!edismax q.op=%s qf=\"%s\" v=$%s}%s",
                 keywordOptions.getKeywordLogicalOperator().name(),
                 String.join(" ", fieldsToUse),
+                keywordQueryVariable,
                 boostFactor);
 
         // Normalize BM25 keyword boosts
