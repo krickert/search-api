@@ -8,7 +8,6 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Singleton
 public class VectorService {
@@ -98,11 +97,12 @@ public class VectorService {
      * @return The vector query string.
      */
     private String buildVectorQuery(String field, List<Float> embeddings, int topK, float boost) {
+        String knnQuery = String.format("{!knn f=%s topK=%d v=$vector}", field, topK);
 
-        if (boost == 0.0f) {
-            return String.format("({!knn f=%s topK=%d v=$vector})", field, topK);
-        } else {
-            return String.format("(({!knn f=%s topK=%d v=$vector})^%.5f)", field, topK, boost);
+        if (boost > 0.0f) {
+            return String.format("((%s)^%.2f)", knnQuery, boost);
         }
+        return knnQuery;
     }
+
 }

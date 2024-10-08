@@ -35,21 +35,26 @@ public class SemanticStrategyBuilder {
      *
      * @param semanticOptions The semantic search options.
      * @param request         The search request.
-     * @param params
+     * @param params          Solr parameter object
      * @return The semantic query string.
      */
     public String buildSemanticQuery(SemanticOptions semanticOptions, SearchRequest request, float boost, Map<String, List<String>> params) {
         List<VectorFieldInfo> vectorFieldsToUse = determineVectorFields(semanticOptions);
         List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
+
+        // Prepare the vector string representation
         String vectorString = "[" + queryEmbedding.stream()
-                .map(embedding -> String.format("%.6f", embedding)) // Format floats
+                .map(embedding -> String.format("%.6f", embedding))
                 .collect(Collectors.joining(",")) + "]";
         params.put("vector", Collections.singletonList(vectorString));
 
-        // Build vector queries for each vector field
+        // Create vector queries for each vector field
         return vectorFieldsToUse.stream()
-                .map(vectorFieldInfo -> vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding,
-                        semanticOptions.getTopK(), boost))
+                .map(vectorFieldInfo -> {
+                    String vectorQuery = vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK(), boost);
+                    // Normalize score using a custom normalization approach (example)
+                    return String.format("scale(%s, 0, 1)^%.2f", vectorQuery, boost);
+                })
                 .collect(Collectors.joining(" OR "));
     }
 
