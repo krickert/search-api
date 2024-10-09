@@ -1,6 +1,5 @@
 package com.krickert.search.api.solr;
 
-import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.junit.jupiter.api.*;

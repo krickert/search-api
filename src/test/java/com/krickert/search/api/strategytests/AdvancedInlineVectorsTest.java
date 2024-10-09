@@ -1,16 +1,55 @@
 package com.krickert.search.api.strategytests;
 
 import com.krickert.search.api.*;
-import org.junit.jupiter.api.*;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.Http2SolrClient;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.io.IOException;
 
+@MicronautTest(environments = {"test-inline"})
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("Advanced Inline Vectors Search Tests")
 public class AdvancedInlineVectorsTest extends AbstractInlineTest {
 
     private static final Logger log = LoggerFactory.getLogger(AdvancedInlineVectorsTest.class);
+
+    @BeforeEach
+    public void checkSolrConnection() {
+        int retries = 5;
+        int retryIntervalMillis = 2000; // 2 seconds between retries
+
+        for (int i = 0; i < retries; i++) {
+            try {
+                solrClient.ping("dummy");
+                log.info("Solr connection verified successfully.");
+                return;
+            } catch (SolrServerException | IOException e) {
+                log.warn("Solr connection verification failed. Attempt {} of {}.", i + 1, retries);
+                if (i < retries - 1) {
+                    try {
+                        Thread.sleep(retryIntervalMillis);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during Solr connection retries", ie);
+                    }
+                } else {
+                    log.error("All retry attempts failed. Solr is not available.", e);
+                    throw new RuntimeException("Failed to connect to Solr after retries", e);
+                }
+            }
+        }
+
+        // If we get here without returning, reinitialize the SolrClient
+        solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        log.info("Reinitialized SolrClient.");
+    }
 
     @Test
     @DisplayName("Combined Semantic and Keyword Search with Facets")
@@ -36,12 +75,11 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
                         .addStrategies(SearchStrategy.newBuilder()
                                 .setType(StrategyType.KEYWORD) // Second strategy: KEYWORD
                                 .setKeyword(KeywordOptions.newBuilder()
-                                        .setBoostWithSemantic(true) // Enable semantic boosting
                                         .build())
                                 .setBoost(1.5f) // Optional: Boost factor for KEYWORD
                                 .build())
                         .build())
-                .addFilterQueries("type:ARTICLE") // Apply filter query
+                .addFilterQueries("document_type:ARTICLE") // Apply filter query
                 .setSort(SortOptions.newBuilder()
                         .setSortType(SortType.SCORE) // Sort by score
                         .setSortOrder(SortOrder.DESC) // Descending order
@@ -70,5 +108,8 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
 
         // Additional assertions can be added here based on expected outcomes
     }
+
+
+
 
 }

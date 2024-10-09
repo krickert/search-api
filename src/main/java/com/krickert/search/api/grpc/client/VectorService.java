@@ -6,12 +6,16 @@ import com.krickert.search.service.EmbeddingsVectorReply;
 import com.krickert.search.service.EmbeddingsVectorRequest;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Singleton
 public class VectorService {
+
+    private static final Logger log = LoggerFactory.getLogger(VectorService.class);
 
     private final EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient;
 
@@ -35,6 +39,7 @@ public class VectorService {
             EmbeddingsVectorReply reply = embeddingClient.createEmbeddingsVector(request);
             return reply.getEmbeddingsList();
         } catch (Exception e) {
+            log.error("Error fetching embeddings for text: {}", text, e);
             throw new RuntimeException("Error fetching embeddings for text: " + text, e);
         }
     }
@@ -45,15 +50,18 @@ public class VectorService {
      * @param vectorFieldInfo The vector field configuration.
      * @param embedding       The vector embeddings.
      * @param topK            The number of top results to fetch.
+     * @param boost           The boost factor for the vector query.
      * @return The Solr vector query.
      */
-    public String buildVectorQueryForEmbedding(VectorFieldInfo vectorFieldInfo, List<Float> embedding, int topK) {
+    public String buildVectorQueryForEmbedding(VectorFieldInfo vectorFieldInfo, List<Float> embedding, int topK, float boost) {
         if (vectorFieldInfo == null) {
             throw new IllegalArgumentException("VectorFieldInfo cannot be null");
         }
 
+        validateTopKAndBoost(topK, boost);
+
         return switch (vectorFieldInfo.getVectorFieldType()) {
-            case INLINE -> buildVectorQuery(vectorFieldInfo.getVectorFieldName(), embedding, topK);
+            case INLINE -> buildVectorQuery(vectorFieldInfo.getVectorFieldName(), embedding, topK, boost);
             case EMBEDDED_DOC -> buildEmbeddedDocJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), embedding, topK);
             case CHILD_COLLECTION ->
                     buildExternalCollectionJoinQueryWithEmbedding(vectorFieldInfo.getVectorFieldName(), vectorFieldInfo.getChunkCollection(), embedding, topK);
@@ -69,7 +77,7 @@ public class VectorService {
      * @return The vector query for the embedded document using a join to the parent.
      */
     private String buildEmbeddedDocJoinQueryWithEmbedding(String vectorField, List<Float> embedding, int topK) {
-        String knnQuery = buildVectorQuery(vectorField, embedding, topK);
+        String knnQuery = buildVectorQuery(vectorField, embedding, topK, 0.0f);
         // Parent-child join query for embedded document
         return String.format("{!parent which=type:parent}%s", knnQuery);
     }
@@ -84,7 +92,7 @@ public class VectorService {
      * @return The vector query for the child collection using a join.
      */
     private String buildExternalCollectionJoinQueryWithEmbedding(String vectorField, String chunkCollection, List<Float> embedding, int topK) {
-        String knnQuery = buildVectorQuery(vectorField, embedding, topK);
+        String knnQuery = buildVectorQuery(vectorField, embedding, topK, 0.0f);
         // External collection join query
         return String.format("{!join from=parent-id to=id fromIndex=%s}%s", chunkCollection, knnQuery);
     }
@@ -95,13 +103,36 @@ public class VectorService {
      * @param field      The Solr field to search against.
      * @param embeddings The vector embeddings.
      * @param topK       The number of top results to fetch.
+     * @param boost      The boost factor for the vector query.
      * @return The vector query string.
      */
-    private String buildVectorQuery(String field, List<Float> embeddings, int topK) {
+    private String buildVectorQuery(String field, List<Float> embeddings, int topK, float boost) {
+        validateTopKAndBoost(topK, boost);
+
         String vectorString = embeddings.stream()
-                .map(embedding -> String.format("%.6f", embedding)) // Format floats
+                .map(value -> String.format("%.6f", value))
                 .collect(Collectors.joining(","));
 
-        return String.format("{!knn f=%s topK=%d}[%s]", field, topK, vectorString);
+        String knnQuery = String.format("{!knn f=%s topK=%d v=%s}", field, topK, vectorString);
+
+        if (boost > 0.0f) {
+            return String.format("((%s)^%.2f)", knnQuery, boost);
+        }
+        return knnQuery;
+    }
+
+    /**
+     * Validates the topK and boost parameters to ensure they are within acceptable ranges.
+     *
+     * @param topK  The number of top results to fetch.
+     * @param boost The boost factor for the vector query.
+     */
+    private void validateTopKAndBoost(int topK, float boost) {
+        if (topK <= 0) {
+            throw new IllegalArgumentException("topK must be greater than 0");
+        }
+        if (boost < 0.0f) {
+            throw new IllegalArgumentException("boost must be non-negative");
+        }
     }
 }

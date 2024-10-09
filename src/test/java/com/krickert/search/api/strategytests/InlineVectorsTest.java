@@ -1,22 +1,32 @@
 package com.krickert.search.api.strategytests;
 
 import com.krickert.search.api.*;
-import org.junit.jupiter.api.*;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.Http2SolrClient;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-
-import static org.junit.jupiter.api.Assertions.*;
-
+@MicronautTest
 @DisplayName("Inline Vectors Search Tests")
 public class InlineVectorsTest extends AbstractInlineTest {
 
     private static final Logger log = LoggerFactory.getLogger(InlineVectorsTest.class);
 
     @BeforeEach
-    public void setupTest() {
-        // Any additional setup before each test can be added here
+    public void checkSolrConnection() {
+        try {
+            solrClient.ping("dummy");
+        } catch (SolrServerException | IOException e) {
+            log.debug("exception thrown", e);
+            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        }
+
     }
 
     @AfterEach
@@ -38,8 +48,7 @@ public class InlineVectorsTest extends AbstractInlineTest {
                         .setOperator(LogicalOperator.OR) // Logical operator can be OR or AND based on requirements
                         .addStrategies(SearchStrategy.newBuilder()
                                 .setType(StrategyType.KEYWORD)
-                                .setKeyword(KeywordOptions.newBuilder()
-                                        .setBoostWithSemantic(false) // No semantic boost for pure keyword search
+                                .setKeyword(KeywordOptions.newBuilder() // No semantic boost for pure keyword search
                                         .build())
                                 .build())
                         .build())
@@ -94,8 +103,7 @@ public class InlineVectorsTest extends AbstractInlineTest {
                         .setOperator(LogicalOperator.OR)
                         .addStrategies(SearchStrategy.newBuilder()
                                 .setType(StrategyType.KEYWORD)
-                                .setKeyword(KeywordOptions.newBuilder()
-                                        .setBoostWithSemantic(true) // Enable semantic boosting
+                                .setKeyword(KeywordOptions.newBuilder() // Enable semantic boosting
                                         .build())
                                 .setBoost(1.5f) // Example boost factor
                                 .build())

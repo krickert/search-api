@@ -1,13 +1,16 @@
 package com.krickert.search.api.grpc.mapper.response;
 
 import com.google.protobuf.Timestamp;
-import com.krickert.search.api.*;
+import com.krickert.search.api.FacetResults;
+import com.krickert.search.api.SearchRequest;
+import com.krickert.search.api.SearchResponse;
+import com.krickert.search.api.SearchResult;
+import jakarta.inject.Singleton;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.inject.Singleton;
 import java.util.*;
 
 @Singleton
@@ -20,13 +23,10 @@ public class ResponseMapper {
         this.facetProcessor = facetProcessor;
     }
 
-    public SearchResponse mapToSearchResponse(QueryResponse solrResponse, SearchRequest request, String fl) {
+    public SearchResponse mapToSearchResponse(QueryResponse solrResponse, SearchRequest request) {
         log.debug("mapping search response for search {}", request);
 
         SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
-
-        // Determine the list of fields to include based on 'fl' parameter
-        Set<String> includedFields = extractIncludedFields(fl);
 
         // Map Solr documents to SearchResult
         for (SolrDocument doc : solrResponse.getResults()) {

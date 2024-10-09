@@ -12,8 +12,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static io.micronaut.core.util.StringUtils.isNotEmpty;
-
 @Singleton
 public class HighlighterQueryBuilder {
     private static final Logger log = LoggerFactory.getLogger(HighlighterQueryBuilder.class);

@@ -20,9 +20,13 @@ import io.micronaut.context.annotation.Value;
 import io.micronaut.grpc.server.GrpcEmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.common.SolrInputDocument;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
@@ -31,14 +35,17 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @MicronautTest(environments = {"test-inline"})
 @Testcontainers
@@ -79,32 +86,48 @@ public abstract class AbstractInlineTest extends AbstractSolrTest {
         log.info("Set system property 'search-api.solr.url' to {}", System.getProperty("search-api.solr.url"));
     }
 
+
     @BeforeAll
     public void beforeAll() throws Exception {
         log.info("useCachedVectors is set to {}", useCachedVectors);
 
+        // Wait for vectorizer container to be ready
         if (!useCachedVectors) {
-            // Initialize the gRPC embedding client
-            ManagedChannel embeddingChannel = ManagedChannelBuilder.forAddress(vectorizerContainer.getHost(), vectorizerContainer.getMappedPort(50401))
-                    .usePlaintext()
-                    .build();
-            embeddingClient = EmbeddingServiceGrpc.newBlockingStub(embeddingChannel);
+            try {
+                ManagedChannel embeddingChannel = ManagedChannelBuilder
+                        .forAddress(vectorizerContainer.getHost(), vectorizerContainer.getMappedPort(50401))
+                        .usePlaintext()
+                        .build();
+                embeddingClient = EmbeddingServiceGrpc.newBlockingStub(embeddingChannel);
+                log.info("Embedding gRPC client initialized successfully.");
+            } catch (Exception e) {
+                log.error("Failed to initialize embedding gRPC client: {}", e.getMessage(), e);
+                throw e;
+            }
         } else {
             log.info("Using cached vectors. Vectorizer service will not be started.");
         }
 
-        // Initialize the gRPC search client
-        GrpcEmbeddedServer grpcServer = context.getBean(GrpcEmbeddedServer.class);
-        int grpcPort = grpcServer.getPort();
-
-        ManagedChannel searchServiceChannel = ManagedChannelBuilder.forAddress("localhost", grpcPort)
-                .usePlaintext()
-                .build();
-        searchServiceStub = SearchServiceGrpc.newBlockingStub(searchServiceChannel);
+        // Initialize gRPC search client
+        try {
+            GrpcEmbeddedServer grpcServer = context.getBean(GrpcEmbeddedServer.class);
+            int grpcPort = grpcServer.getPort();
+            ManagedChannel searchServiceChannel = ManagedChannelBuilder
+                    .forAddress("localhost", grpcPort)
+                    .usePlaintext()
+                    .build();
+            searchServiceStub = SearchServiceGrpc.newBlockingStub(searchServiceChannel);
+            log.info("Search service gRPC client initialized successfully.");
+        } catch (Exception e) {
+            log.error("Failed to initialize search service gRPC client: {}", e.getMessage(), e);
+            throw e;
+        }
 
         // Call parent setup method to initialize Solr
         super.setUp();
+        log.info("Solr setup completed.");
     }
+
 
     @AfterAll
     public void afterAll() throws Exception {
@@ -292,6 +315,17 @@ public abstract class AbstractInlineTest extends AbstractSolrTest {
         String jsonResponse = JsonFormat.printer().includingDefaultValueFields().print(response);
         log.debug("{} Response:\n{}", testDescription, jsonResponse);
         log.info("=======================");
+    }
+
+    @BeforeEach
+    public void checkSolrConnection() {
+        try {
+            solrClient.ping("dummy");
+        } catch (SolrServerException | IOException e) {
+            log.debug("exception thrown", e);
+            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        }
+
     }
 
 

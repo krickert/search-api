@@ -3,11 +3,14 @@ package com.krickert.search.api.grpc.mapper.query;
 import com.krickert.search.api.*;
 import com.krickert.search.api.config.SearchApiConfig;
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.inject.Singleton;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
 import static com.google.common.base.Preconditions.checkNotNull;
 
 @Singleton
@@ -16,25 +19,25 @@ public class SolrQueryBuilder {
 
     private final SearchApiConfig searchApiConfig;
     private final HighlighterQueryBuilder highlighterQueryBuilder;
-    private final SemanticQueryBuilder semanticQueryBuilder;
+    private final SemanticStrategyBuilder semanticStrategyBuilder;
     private final FacetQueryBuilder facetQueryBuilder;
     private final FieldListBuilder fieldListBuilder;
-    private final KeywordQueryBuilder keywordQueryBuilder;
+    private final KeywordStrategyBuilder keywordStrategyBuilder;
 
     @Inject
     public SolrQueryBuilder(SearchApiConfig config,
                             HighlighterQueryBuilder highlighterQueryBuilder,
-                            SemanticQueryBuilder semanticQueryBuilder,
+                            SemanticStrategyBuilder semanticStrategyBuilder,
                             FacetQueryBuilder facetQueryBuilder,
                             FieldListBuilder fieldListBuilder,
-                            KeywordQueryBuilder keywordQueryBuilder) {
+                            KeywordStrategyBuilder keywordStrategyBuilder) {
 
         this.searchApiConfig = checkNotNull(config);
         this.highlighterQueryBuilder = checkNotNull(highlighterQueryBuilder);
-        this.semanticQueryBuilder = checkNotNull(semanticQueryBuilder);
+        this.semanticStrategyBuilder = checkNotNull(semanticStrategyBuilder);
         this.facetQueryBuilder = checkNotNull(facetQueryBuilder);
         this.fieldListBuilder = checkNotNull(fieldListBuilder);
-        this.keywordQueryBuilder = checkNotNull(keywordQueryBuilder);
+        this.keywordStrategyBuilder = checkNotNull(keywordStrategyBuilder);
         log.info("Solr query builder started.");
     }
 
@@ -45,111 +48,101 @@ public class SolrQueryBuilder {
         if (request.hasStrategy() && request.getStrategy().getStrategiesCount() > 0) {
             SearchStrategyOptions strategyOptions = request.getStrategy();
             LogicalOperator operator = strategyOptions.getOperator();
-
-            List<String> mainQueries = new ArrayList<>();
-            List<String> boostQueries = new ArrayList<>();
-
-            for (SearchStrategy strategy : strategyOptions.getStrategiesList()) {
-                switch (strategy.getType()) {
-                    case KEYWORD:
-                        // Add keyword-specific parameters (e.g., filters, similarity options)
-                        keywordQueryBuilder.addKeywordParams(strategy.getKeyword(), request, params);
-                        // Build the main keyword query
-                        String keywordQuery = keywordQueryBuilder.buildKeywordQuery(strategy.getKeyword(), request);
-                        mainQueries.add(keywordQuery);
-                        // Build the keyword boost query if boost factor is present
-                        if (strategy.hasBoost()) {
-                            String keywordBoostQuery = keywordQueryBuilder.buildKeywordBoostQuery(strategy.getKeyword(), request, strategy.getBoost());
-                            boostQueries.add(keywordBoostQuery);
-                        }
-                        break;
-                    case SEMANTIC:
-                        // Add semantic-specific parameters (e.g., similarity options, filters)
-                        semanticQueryBuilder.handleSimilarityOptions(strategy.getSemantic(), request, params);
-                        // Build the main semantic query
-                        String semanticQuery = semanticQueryBuilder.buildSemanticQuery(strategy.getSemantic(), request);
-                        mainQueries.add(semanticQuery);
-                        // Build the semantic boost query if boost factor is present
-                        if (strategy.hasBoost()) {
-                            String semanticBoostQuery = semanticQueryBuilder.buildSemanticBoostQuery(strategy.getSemantic(), request, strategy.getBoost());
-                            boostQueries.add(semanticBoostQuery);
-                        }
-                        break;
-                    // Handle additional strategy types here
-                    default:
-                        throw new IllegalArgumentException("Unsupported strategy type: " + strategy.getType());
-                }
-            }
+            List<String> mainQueries = createQueriesFromStrategies(request, strategyOptions, params);
 
             // Combine main queries with the specified operator
-            String combinedMainQuery = String.join(" " + operatorToSolrOperator(operator) + " ", mainQueries);
-            params.put("q", Collections.singletonList(combinedMainQuery));
+            String combinedMainQuery = String.join(" " + operator.name() + " ", mainQueries);
+            params.put("q", Collections.singletonList("*:*"));
 
-            // Add boost queries if any
-            if (!boostQueries.isEmpty()) {
-                params.put("bq", boostQueries);
-            }
+            // Use `bq` for boosting keyword query
+            String keywordBoostQuery = String.join(" OR ", mainQueries);
+            params.put("bq", Collections.singletonList(keywordBoostQuery));
 
-            // Enable highlighting based on the operator
+            // Use `fq` to filter based on conditions, without directly referencing boosted queries
+            addFilterQueriesToRequest(request, params);
+
+            // Enable highlighting if requested
             highlighterQueryBuilder.enableHighlighting(request, params, operator);
         } else {
             // Default to keyword-only search if no strategy is specified
             KeywordOptions defaultKeywordOptions = getDefaultKeywordOptions();
-            keywordQueryBuilder.addKeywordParams(defaultKeywordOptions, request, params);
-            String keywordQuery = keywordQueryBuilder.buildKeywordQuery(defaultKeywordOptions, request);
-            params.put("q", Collections.singletonList(keywordQuery));
+            String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(defaultKeywordOptions, request, 1.0f, params, new AtomicInteger());
+            params.put("q", Collections.singletonList("*:*"));
+            params.put("bq", Collections.singletonList(keywordQuery));
         }
-
-        // Handle start and rows (paging)
-        int start = request.hasStart() ? request.getStart() : 0;
-        int numResults = request.hasNumResults() ? request.getNumResults() : searchApiConfig.getSolr().getDefaultSearch().getRows();
-        params.put("start", Collections.singletonList(String.valueOf(start)));
-        params.put("rows", Collections.singletonList(String.valueOf(numResults)));
-
-        // Handle filter queries (fq)
-        if (!request.getFilterQueriesList().isEmpty()) {
-            params.put("fq", request.getFilterQueriesList());
-        }
-
-        // Handle sorting
-        if (request.hasSort()) {
-            SortOptions sortOptions = request.getSort();
-            String sortField = (sortOptions.getSortType() == SortType.FIELD && sortOptions.hasSortField())
-                    ? sortOptions.getSortField()
-                    : "score"; // Default sort field
-            String sortOrder = sortOptions.getSortOrder() == SortOrder.ASC ? "asc" : "desc";
-            params.put("sort", Collections.singletonList(sortField + " " + sortOrder));
-        } else {
-            // Use default sort from configuration
-            params.put("sort", Collections.singletonList(searchApiConfig.getSolr().getDefaultSearch().getSort()));
-        }
-
-        // Handle unified facets
+        // Add pagination, sorting, additional fields, and facets
+        addAdditionalFields(request, params);
+        addFilterQueriesToRequest(request, params);
+        addPaginationToRequest(request, params);
+        addSortingOptions(request, params);
+        addAdditionalFields(request, params);
+        fieldListBuilder.handleFieldList(request, params);
         facetQueryBuilder.addUnifiedFacets(request, params);
 
+        return new SolrQueryData(params);
+    }
+
+    private static void addAdditionalFields(SearchRequest request, Map<String, List<String>> params) {
         // Handle additional parameters
         if (request.hasAdditionalParams()) {
             request.getAdditionalParams().getParamList().forEach(param ->
                     params.computeIfAbsent(param.getField(), k -> new ArrayList<>()).add(param.getValue())
             );
         }
+    }
 
-        // Handle field list (inclusion/exclusion)
-        String fl = fieldListBuilder.handleFieldList(request, params);
+    private void addSortingOptions(SearchRequest request, Map<String, List<String>> params) {
+        if (request.hasSort()) {
+            SortOptions sortOptions = request.getSort();
+            String sortField = (sortOptions.getSortType() == SortType.FIELD && sortOptions.hasSortField())
+                    ? sortOptions.getSortField()
+                    : "score";
+            String sortOrder = sortOptions.getSortOrder() == SortOrder.ASC ? "asc" : "desc";
+            params.put("sort", Collections.singletonList(sortField + " " + sortOrder));
+        } else {
+            params.put("sort", Collections.singletonList(searchApiConfig.getSolr().getDefaultSearch().getSort()));
+        }
+    }
 
-        return new SolrQueryData(params, fl);
+    private static void addFilterQueriesToRequest(SearchRequest request, Map<String, List<String>> params) {
+        if (!request.getFilterQueriesList().isEmpty()) {
+            AtomicInteger tagNum = new AtomicInteger();
+            List<String> taggedFqQueries = request.getFilterQueriesList().stream()
+                    .map(fq -> String.format("{!tag=fq_tag%s}%s", tagNum.getAndIncrement(), fq))  // Add a tag to each fq for selective pre-filtering
+                    .collect(Collectors.toList());
+            params.put("fq", taggedFqQueries);
+        }
+    }
+
+    private void addPaginationToRequest(SearchRequest request, Map<String, List<String>> params) {
+        int start = request.hasStart() ? request.getStart() : 0;
+        int numResults = request.hasNumResults() ? request.getNumResults() : searchApiConfig.getSolr().getDefaultSearch().getRows();
+        params.put("start", Collections.singletonList(String.valueOf(start)));
+        params.put("rows", Collections.singletonList(String.valueOf(numResults)));
+    }
+
+    private List<String> createQueriesFromStrategies(SearchRequest request, SearchStrategyOptions strategyOptions, Map<String, List<String>> params) {
+        List<String> mainQueries = new ArrayList<>();
+        for (SearchStrategy strategy : strategyOptions.getStrategiesList()) {
+            AtomicInteger tagNum = new AtomicInteger();
+            switch (strategy.getType()) {
+                case KEYWORD -> {
+                    String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(strategy.getKeyword(), request, strategy.getBoost(),
+                            params, tagNum);
+                    mainQueries.add(keywordQuery);
+                }
+                case SEMANTIC -> {
+                    semanticStrategyBuilder.handleSimilarityOptions(strategy.getSemantic(), request, params);
+                    String semanticQuery = semanticStrategyBuilder.buildSemanticQuery(strategy.getSemantic(), request, strategy.getBoost(), params);
+                    mainQueries.add(semanticQuery);
+                }
+                default -> throw new IllegalArgumentException("Unsupported strategy type: " + strategy.getType());
+            }
+        }
+        return mainQueries;
     }
 
     private KeywordOptions getDefaultKeywordOptions() {
-        return KeywordOptions.newBuilder().setBoostWithSemantic(true).build();
-    }
-
-    // Helper method to convert LogicalOperator enum to Solr operator string
-    private String operatorToSolrOperator(LogicalOperator operator) {
-        return switch (operator) {
-            case AND -> "AND";
-            case OR -> "OR";
-            default -> "OR"; // Default operator
-        };
+        return KeywordOptions.newBuilder().setKeywordLogicalOperator(LogicalOperator.OR).build();
     }
 }
