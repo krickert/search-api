@@ -66,7 +66,7 @@ public class SolrQueryBuilder {
         } else {
             // Default to keyword-only search if no strategy is specified
             KeywordOptions defaultKeywordOptions = getDefaultKeywordOptions();
-            String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(defaultKeywordOptions, request, 1.0f, params);
+            String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(defaultKeywordOptions, request, 1.0f, params, new AtomicInteger());
             params.put("q", Collections.singletonList("*:*"));
             params.put("bq", Collections.singletonList(keywordQuery));
         }
@@ -124,9 +124,11 @@ public class SolrQueryBuilder {
     private List<String> createQueriesFromStrategies(SearchRequest request, SearchStrategyOptions strategyOptions, Map<String, List<String>> params) {
         List<String> mainQueries = new ArrayList<>();
         for (SearchStrategy strategy : strategyOptions.getStrategiesList()) {
+            AtomicInteger tagNum = new AtomicInteger();
             switch (strategy.getType()) {
                 case KEYWORD -> {
-                    String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(strategy.getKeyword(), request, strategy.getBoost(), params);
+                    String keywordQuery = keywordStrategyBuilder.buildKeywordQuery(strategy.getKeyword(), request, strategy.getBoost(),
+                            params, tagNum);
                     mainQueries.add(keywordQuery);
                 }
                 case SEMANTIC -> {

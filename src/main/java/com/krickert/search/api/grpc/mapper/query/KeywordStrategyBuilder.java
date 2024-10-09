@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.solr.client.solrj.util.ClientUtils.escapeQueryChars;
@@ -29,29 +30,30 @@ public class KeywordStrategyBuilder {
      *
      * @param keywordOptions The keyword search options.
      * @param request        The search request.
+     * @param counter        The atomic counter to ensure unique parameter names.
      * @return The keyword query string.
      */
-    public String buildKeywordQuery(KeywordOptions keywordOptions, SearchRequest request, float boost, Map<String, List<String>> params) {
+    public String buildKeywordQuery(KeywordOptions keywordOptions, SearchRequest request, float boost, Map<String, List<String>> params, AtomicInteger counter) {
         final String query = findQuery(keywordOptions, request);
         List<String> fieldsToUse = findQueryFields(keywordOptions);
         String escapedQuery = escapeQueryChars(query);
 
-        // Define the keyword query as a variable with unique key
-        String keywordQueryVariable = String.format("keywordQuery_%d=%s", params.size() + 1, escapedQuery);
-        params.put(keywordQueryVariable, List.of(escapedQuery));
+        // Use the AtomicInteger to generate a unique variable name
+        String keywordQueryVariableName = String.format("keywordQuery_%d", counter.getAndIncrement());
+        params.put(keywordQueryVariableName, List.of(escapedQuery));
 
         // Build the edismax query to be used as a boost or main query
         String boostFactor = (boost > 0.0f) ? "^" + boost : "";
         String eDismaxQuery = String.format("{!edismax q.op=%s qf=\"%s\" v=$%s}%s",
                 keywordOptions.getKeywordLogicalOperator().name(),
                 String.join(" ", fieldsToUse),
-                keywordQueryVariable,
+                keywordQueryVariableName,
                 boostFactor);
 
         // Normalize BM25 keyword boosts
         String normalizedQuery = String.format("scale(%s, 0, 1)", eDismaxQuery);
 
-        log.debug("Query variable defined for strategy: [keywordOptions: {} query: {}]", keywordOptions, keywordQueryVariable);
+        log.debug("Query variable defined for strategy: [keywordOptions: {} query: {}]", keywordOptions, keywordQueryVariableName);
         log.debug("Boosted and normalized Query for keyword strategy: [query: {}]", normalizedQuery);
         return normalizedQuery;
     }

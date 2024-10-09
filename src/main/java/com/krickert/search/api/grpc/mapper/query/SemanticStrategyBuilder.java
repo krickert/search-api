@@ -39,6 +39,8 @@ public class SemanticStrategyBuilder {
      * @return The semantic query string.
      */
     public String buildSemanticQuery(SemanticOptions semanticOptions, SearchRequest request, float boost, Map<String, List<String>> params) {
+        validateSimilarityOptions(semanticOptions);
+
         List<VectorFieldInfo> vectorFieldsToUse = determineVectorFields(semanticOptions);
         List<Float> queryEmbedding = vectorService.getEmbeddingForText(request.getQuery());
 
@@ -49,12 +51,48 @@ public class SemanticStrategyBuilder {
         String vectorVariable = String.format("vectorQuery_%d", params.size() + 1);
         params.put(vectorVariable, Collections.singletonList(vectorString));
 
-        // Create vector queries for each vector field
+        boolean useVectorSimilarity = semanticOptions.hasSimilarity() && (semanticOptions.getSimilarity().hasMinReturn() || semanticOptions.getSimilarity().hasMinTraverse());
+        String queryParser = useVectorSimilarity ? "vectorSimilarity" : "knn";
+
+        // Create vector queries for each vector field with similarity options
         return vectorFieldsToUse.stream()
                 .map(vectorFieldInfo -> {
-                    String vectorQuery = vectorService.buildVectorQueryForEmbedding(vectorFieldInfo, queryEmbedding, semanticOptions.getTopK(), boost);
+                    StringBuilder vectorQueryBuilder = new StringBuilder();
+                    vectorQueryBuilder.append(String.format("{!%s f=%s v=$%s", queryParser, vectorFieldInfo.getVectorFieldName(), vectorVariable));
+
+                    // Handle similarity options for vectorSimilarity
+                    if (useVectorSimilarity) {
+                        SimilarityOptions similarity = semanticOptions.getSimilarity();
+                        if (similarity.hasMinReturn()) {
+                            vectorQueryBuilder.append(String.format(" minReturn=%s", similarity.getMinReturn()));
+                        }
+                        if (similarity.hasMinTraverse()) {
+                            vectorQueryBuilder.append(String.format(" minTraverse=%s", similarity.getMinTraverse()));
+                        }
+                    }
+
+                    if (!semanticOptions.getIncludeTagsList().isEmpty()) {
+                        String includeTags = String.join(",", semanticOptions.getIncludeTagsList());
+                        vectorQueryBuilder.append(String.format(" includeTags='%s'", includeTags));
+                    }
+                    if (!semanticOptions.getExcludeTagsList().isEmpty()) {
+                        String excludeTags = String.join(",", semanticOptions.getExcludeTagsList());
+                        vectorQueryBuilder.append(String.format(" excludeTags='%s'", excludeTags));
+                    }
+
+                    // Handle preFilters if specified
+                    if (!semanticOptions.getSimilarity().getPreFilterList().isEmpty()) {
+                        semanticOptions.getSimilarity().getPreFilterList().forEach(preFilter -> {
+                            String knnPreFilter = String.format("%s:%s", preFilter.getField(), preFilter.getValue());
+                            params.computeIfAbsent("knnPreFilter", k -> new ArrayList<>()).add(knnPreFilter);
+                        });
+                        vectorQueryBuilder.append(" preFilter=$knnPreFilter");
+                    }
+
+                    vectorQueryBuilder.append("}");
+
                     // Normalize score using a custom normalization approach (example)
-                    return String.format("scale(%s, 0, 1)^%.2f", vectorQuery, boost);
+                    return String.format("scale(%s, 0, 1)^%.2f", vectorQueryBuilder.toString(), boost);
                 })
                 .collect(Collectors.joining(" OR "));
     }
@@ -81,14 +119,6 @@ public class SemanticStrategyBuilder {
             params.put("minTraverse", Collections.singletonList("-Infinity")); // Default minTraverse
         }
 
-        // Apply pre-filters if any
-        if (!similarity.getPreFilterList().isEmpty()) {
-            for (Filter filter : similarity.getPreFilterList()) {
-                String fq = filter.getField() + ":" + filter.getValue();
-                params.computeIfAbsent("fq", k -> new ArrayList<>()).add(fq);
-            }
-        }
-
         log.debug("Similarity options applied: {}", similarity);
     }
 
@@ -112,6 +142,13 @@ public class SemanticStrategyBuilder {
             }
             log.info("Using specified vector fields: {}", requestedVectorFields);
             return vectorFields;
+        }
+    }
+
+    private void validateSimilarityOptions(SemanticOptions semanticOptions) {
+        SimilarityOptions similarity = semanticOptions.hasSimilarity() ? semanticOptions.getSimilarity() : SimilarityOptions.getDefaultInstance();
+        if (!similarity.getPreFilterList().isEmpty() && (!semanticOptions.getIncludeTagsList().isEmpty() || !semanticOptions.getExcludeTagsList().isEmpty())) {
+            throw new IllegalArgumentException("The preFilter cannot be used with includeTags or excludeTags. Please specify only one.");
         }
     }
 }
