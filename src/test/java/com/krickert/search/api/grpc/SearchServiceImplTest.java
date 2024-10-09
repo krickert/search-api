@@ -4,11 +4,10 @@ import com.google.protobuf.Timestamp;
 import com.krickert.search.api.*;
 import com.krickert.search.api.config.CollectionConfig;
 import com.krickert.search.api.config.SearchApiConfig;
-import com.krickert.search.api.grpc.client.VectorService;
-import com.krickert.search.api.grpc.mapper.response.FacetProcessor;
-import com.krickert.search.api.grpc.mapper.response.ResponseMapper;
 import com.krickert.search.api.grpc.mapper.query.SolrQueryBuilder;
 import com.krickert.search.api.grpc.mapper.query.SolrQueryData;
+import com.krickert.search.api.grpc.mapper.response.FacetProcessor;
+import com.krickert.search.api.grpc.mapper.response.ResponseMapper;
 import com.krickert.search.api.solr.SolrService;
 import io.grpc.stub.StreamObserver;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -111,7 +110,7 @@ class SearchServiceImplTest {
                 .build();
 
         // Configure the ResponseMapper to return the mockSearchResponse
-        when(responseMapper.mapToSearchResponse(any(), any()));
+        when(responseMapper.mapToSearchResponse(any(), any())).thenReturn(mockSearchResponse);
 
         // Create a search request with only query text
         SearchRequest request = SearchRequest.newBuilder()

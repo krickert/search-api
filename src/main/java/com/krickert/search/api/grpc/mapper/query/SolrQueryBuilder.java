@@ -3,10 +3,10 @@ package com.krickert.search.api.grpc.mapper.query;
 import com.krickert.search.api.*;
 import com.krickert.search.api.config.SearchApiConfig;
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.inject.Singleton;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;

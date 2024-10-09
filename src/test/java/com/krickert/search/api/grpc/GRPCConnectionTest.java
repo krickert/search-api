@@ -5,14 +5,28 @@ import com.krickert.search.service.EmbeddingsVectorReply;
 import com.krickert.search.service.EmbeddingsVectorRequest;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.Mockito;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @MicronautTest
 public class GRPCConnectionTest {
 
     @Inject
     EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient;
+
+    @BeforeEach
+    void setup() {
+        // Mock the gRPC client
+        gRPCClient = Mockito.mock(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
+        EmbeddingsVectorReply mockReply = EmbeddingsVectorReply.newBuilder().addEmbeddings(0.1f).addEmbeddings(0.2f).build();
+        when(gRPCClient.createEmbeddingsVector(any(EmbeddingsVectorRequest.class))).thenReturn(mockReply);
+    }
 
     @Test
     public void testGRPCServiceConnection() {

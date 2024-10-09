@@ -2,13 +2,13 @@ package com.krickert.search.api.grpc.mapper.response;
 
 import com.krickert.search.api.FacetResult;
 import com.krickert.search.api.FacetResults;
+import jakarta.inject.Singleton;
 import org.apache.solr.client.solrj.response.FacetField;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.RangeFacet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.inject.Singleton;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

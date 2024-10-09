@@ -1,7 +1,7 @@
 package com.krickert.search.api.grpc.mapper.query;
 
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 public class SolrQueryData {
     private final Map<String, List<String>> queryParams;

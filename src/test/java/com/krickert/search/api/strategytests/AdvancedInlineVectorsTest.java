@@ -1,17 +1,34 @@
 package com.krickert.search.api.strategytests;
 
 import com.krickert.search.api.*;
-import org.junit.jupiter.api.*;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.Http2SolrClient;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.io.IOException;
 
+@MicronautTest(environments = {"test-inline"})
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("Advanced Inline Vectors Search Tests")
 public class AdvancedInlineVectorsTest extends AbstractInlineTest {
 
     private static final Logger log = LoggerFactory.getLogger(AdvancedInlineVectorsTest.class);
+    @BeforeEach
+    public void checkSolrConnection() {
+        try {
+            solrClient.ping("dummy");
+        } catch (SolrServerException | IOException e) {
+            log.debug("exception thrown", e);
+            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        }
 
+    }
     @Test
     @DisplayName("Combined Semantic and Keyword Search with Facets")
     public void testCombinedSemanticAndKeywordSearch() throws Exception {
@@ -69,5 +86,8 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
 
         // Additional assertions can be added here based on expected outcomes
     }
+
+
+
 
 }

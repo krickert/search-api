@@ -8,17 +8,16 @@ import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
-import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.request.QueryRequest;
+import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.PreDestroy;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.io.IOException;
 @Singleton
 public class SolrService {
 
@@ -83,7 +82,6 @@ public class SolrService {
      *
      * @throws IOException If an I/O error occurs during closing.
      */
-    @PreDestroy
     public void close() throws IOException {
         solrClient.close();
         log.info("SolrClient has been closed.");

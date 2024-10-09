@@ -2,13 +2,10 @@ package com.krickert.search.api;
 
 import com.google.gson.Gson;
 import com.google.protobuf.util.JsonFormat;
-import com.krickert.search.api.*;
-import io.micronaut.context.annotation.Bean;
-import io.micronaut.grpc.annotation.GrpcChannel;
 import io.micronaut.http.MediaType;
-import io.micronaut.http.annotation.*;
-import io.micronaut.grpc.server.GrpcServerChannel;
-import io.grpc.ManagedChannel;
+import io.micronaut.http.annotation.Body;
+import io.micronaut.http.annotation.Controller;
+import io.micronaut.http.annotation.Post;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.validation.constraints.NotBlank;

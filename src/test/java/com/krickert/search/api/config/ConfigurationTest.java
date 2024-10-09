@@ -43,7 +43,7 @@ public class ConfigurationTest {
         SearchApiConfig.VectorDefault vectorDefault = searchApiConfig.getVectorDefault();
         // Assertions to test the values of VectorDefault
         assertNotNull(vectorDefault, "VectorDefault should not be null");
-        assertEquals("test-val", vectorDefault.getVectorGrpcChannel(), "VectorGrpcChannel should match");
+        assertEquals("search-api.vector-grpc-channel", vectorDefault.getVectorGrpcChannel(), "VectorGrpcChannel should match");
         assertEquals("all-Mini-LM-embeddings-384", vectorDefault.getVectorGrpcDisplayName(), "VectorGrpcDisplayName should match");
         // Test Authentication
         SearchApiConfig.SolrConfig.Authentication authentication = solrConfig.getAuthentication();

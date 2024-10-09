@@ -1,6 +1,5 @@
 package com.krickert.search.api.grpc.mapper.query;
 
-import com.krickert.search.api.Filter;
 import com.krickert.search.api.SearchRequest;
 import com.krickert.search.api.SemanticOptions;
 import com.krickert.search.api.SimilarityOptions;

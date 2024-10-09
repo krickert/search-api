@@ -20,9 +20,13 @@ import io.micronaut.context.annotation.Value;
 import io.micronaut.grpc.server.GrpcEmbeddedServer;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.common.SolrInputDocument;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
@@ -31,14 +35,17 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @MicronautTest(environments = {"test-inline"})
 @Testcontainers
@@ -78,6 +85,7 @@ public abstract class AbstractInlineTest extends AbstractSolrTest {
         log.info("Set system property 'search-api.vector-grpc-channel' to {}", vectorizerUrl);
         log.info("Set system property 'search-api.solr.url' to {}", System.getProperty("search-api.solr.url"));
     }
+
 
     @BeforeAll
     public void beforeAll() throws Exception {
@@ -292,6 +300,17 @@ public abstract class AbstractInlineTest extends AbstractSolrTest {
         String jsonResponse = JsonFormat.printer().includingDefaultValueFields().print(response);
         log.debug("{} Response:\n{}", testDescription, jsonResponse);
         log.info("=======================");
+    }
+
+    @BeforeEach
+    public void checkSolrConnection() {
+        try {
+            solrClient.ping("dummy");
+        } catch (SolrServerException | IOException e) {
+            log.debug("exception thrown", e);
+            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        }
+
     }
 
 

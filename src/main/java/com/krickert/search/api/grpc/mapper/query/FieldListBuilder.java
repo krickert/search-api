@@ -3,13 +3,11 @@ package com.krickert.search.api.grpc.mapper.query;
 import com.krickert.search.api.FieldList;
 import com.krickert.search.api.SearchRequest;
 import com.krickert.search.api.config.SearchApiConfig;
-import io.micronaut.core.util.CollectionUtils;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.micronaut.core.util.CollectionUtils.isNotEmpty;

@@ -1,11 +1,13 @@
 package com.krickert.search.api.grpc;
 
-import com.krickert.search.api.*;
+import com.krickert.search.api.SearchRequest;
+import com.krickert.search.api.SearchResponse;
+import com.krickert.search.api.SearchServiceGrpc;
 import com.krickert.search.api.config.CollectionConfig;
 import com.krickert.search.api.config.SearchApiConfig;
-import com.krickert.search.api.grpc.mapper.response.ResponseMapper;
 import com.krickert.search.api.grpc.mapper.query.SolrQueryBuilder;
 import com.krickert.search.api.grpc.mapper.query.SolrQueryData;
+import com.krickert.search.api.grpc.mapper.response.ResponseMapper;
 import com.krickert.search.api.solr.SolrService;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
