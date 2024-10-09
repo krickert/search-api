@@ -1,5 +1,6 @@
 package com.krickert.search.api.strategytests;
 
+import com.krickert.search.api.solr.SolrTest;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
@@ -20,7 +21,7 @@ import java.util.List;
 
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public abstract class AbstractSolrTest {
+public abstract class AbstractSolrTest extends SolrTest {
     protected static final String DEFAULT_COLLECTION = "documents";
     protected List<String> collectionsCreated = new ArrayList<>();
     protected static final Logger log = LoggerFactory.getLogger(AbstractSolrTest.class);
@@ -64,16 +65,16 @@ public abstract class AbstractSolrTest {
 
     @BeforeAll
     public void setUp() throws Exception {
-        if (!solrContainer.isRunning()) {
-            solrContainer.start();
-        }
-        if (solrClient == null) {
-            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
-            log.info("Solr client can be accessed at {}", solrBaseUrl);
-        }
-
-        log.info("AbstractSolrTest setUp completed.");
+        super.setUp();
+        String host = solrContainer.getHost();
+        int port = solrContainer.getMappedPort(8983);
+        log.info("Solr running on {}:{}", host, port);
+        solrBaseUrl = "http://" + host + ":" + port + "/solr";
+        solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        log.info("Initialized SolrClient with base URL: {}", solrBaseUrl);
     }
+
+
 
     @AfterAll
     public void tearDown() throws Exception {

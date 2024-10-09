@@ -1,5 +1,6 @@
 package com.krickert.search.api.cache;
 
+import jakarta.inject.Singleton;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,8 +10,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 
+@Singleton
 public class VectorCache {
-    protected static final Logger log = LoggerFactory.getLogger(VectorCache.class);
+    private static final Logger log = LoggerFactory.getLogger(VectorCache.class);
     private static final String CACHE_FILE_PATH = "src/test/resources/vector_cache.dat";
     private final Map<String, List<Float>> cache;
 
@@ -27,7 +29,7 @@ public class VectorCache {
      */
     public void addVector(String text, List<Float> vector) {
         String key = DigestUtils.sha256Hex(text);
-        cache.put(key, vector);
+        cache.put(key, new ArrayList<>(vector)); // Ensure the vector is serializable
         saveCacheToDisk();
     }
 
@@ -70,9 +72,16 @@ public class VectorCache {
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(CACHE_FILE_PATH))) {
                 Map<String, List<Float>> loadedCache = (Map<String, List<Float>>) ois.readObject();
                 cache.putAll(loadedCache);
-            } catch (IOException | ClassNotFoundException e) {
-                log.error("problem loading cache", e);
+                log.info("Cache loaded successfully from disk: {}", CACHE_FILE_PATH);
+            } catch (EOFException e) {
+                log.warn("Cache file is empty. Starting with an empty cache. File: {}", CACHE_FILE_PATH);
+            } catch (IOException e) {
+                log.error("IOException occurred while loading cache from disk: {}. Message: {}", CACHE_FILE_PATH, e.getMessage(), e);
+            } catch (ClassNotFoundException e) {
+                log.error("ClassNotFoundException occurred while loading cache from disk: {}. Message: {}", CACHE_FILE_PATH, e.getMessage(), e);
             }
+        } else {
+            log.info("No cache file found. Starting with an empty cache. File: {}", CACHE_FILE_PATH);
         }
     }
 
@@ -82,8 +91,9 @@ public class VectorCache {
     private void saveCacheToDisk() {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(CACHE_FILE_PATH))) {
             oos.writeObject(cache);
+            log.info("Cache saved successfully to disk: {}", CACHE_FILE_PATH);
         } catch (IOException e) {
-            log.error("problem saving cache", e);
+            log.error("IOException occurred while saving cache to disk: {}. Message: {}", CACHE_FILE_PATH, e.getMessage(), e);
         }
     }
 }

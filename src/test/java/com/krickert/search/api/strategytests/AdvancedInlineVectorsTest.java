@@ -19,16 +19,38 @@ import java.io.IOException;
 public class AdvancedInlineVectorsTest extends AbstractInlineTest {
 
     private static final Logger log = LoggerFactory.getLogger(AdvancedInlineVectorsTest.class);
+
     @BeforeEach
     public void checkSolrConnection() {
-        try {
-            solrClient.ping("dummy");
-        } catch (SolrServerException | IOException e) {
-            log.debug("exception thrown", e);
-            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        int retries = 5;
+        int retryIntervalMillis = 2000; // 2 seconds between retries
+
+        for (int i = 0; i < retries; i++) {
+            try {
+                solrClient.ping("dummy");
+                log.info("Solr connection verified successfully.");
+                return;
+            } catch (SolrServerException | IOException e) {
+                log.warn("Solr connection verification failed. Attempt {} of {}.", i + 1, retries);
+                if (i < retries - 1) {
+                    try {
+                        Thread.sleep(retryIntervalMillis);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during Solr connection retries", ie);
+                    }
+                } else {
+                    log.error("All retry attempts failed. Solr is not available.", e);
+                    throw new RuntimeException("Failed to connect to Solr after retries", e);
+                }
+            }
         }
 
+        // If we get here without returning, reinitialize the SolrClient
+        solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        log.info("Reinitialized SolrClient.");
     }
+
     @Test
     @DisplayName("Combined Semantic and Keyword Search with Facets")
     public void testCombinedSemanticAndKeywordSearch() throws Exception {

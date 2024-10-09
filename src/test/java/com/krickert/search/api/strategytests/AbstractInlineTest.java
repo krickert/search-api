@@ -91,28 +91,43 @@ public abstract class AbstractInlineTest extends AbstractSolrTest {
     public void beforeAll() throws Exception {
         log.info("useCachedVectors is set to {}", useCachedVectors);
 
+        // Wait for vectorizer container to be ready
         if (!useCachedVectors) {
-            // Initialize the gRPC embedding client
-            ManagedChannel embeddingChannel = ManagedChannelBuilder.forAddress(vectorizerContainer.getHost(), vectorizerContainer.getMappedPort(50401))
-                    .usePlaintext()
-                    .build();
-            embeddingClient = EmbeddingServiceGrpc.newBlockingStub(embeddingChannel);
+            try {
+                ManagedChannel embeddingChannel = ManagedChannelBuilder
+                        .forAddress(vectorizerContainer.getHost(), vectorizerContainer.getMappedPort(50401))
+                        .usePlaintext()
+                        .build();
+                embeddingClient = EmbeddingServiceGrpc.newBlockingStub(embeddingChannel);
+                log.info("Embedding gRPC client initialized successfully.");
+            } catch (Exception e) {
+                log.error("Failed to initialize embedding gRPC client: {}", e.getMessage(), e);
+                throw e;
+            }
         } else {
             log.info("Using cached vectors. Vectorizer service will not be started.");
         }
 
-        // Initialize the gRPC search client
-        GrpcEmbeddedServer grpcServer = context.getBean(GrpcEmbeddedServer.class);
-        int grpcPort = grpcServer.getPort();
-
-        ManagedChannel searchServiceChannel = ManagedChannelBuilder.forAddress("localhost", grpcPort)
-                .usePlaintext()
-                .build();
-        searchServiceStub = SearchServiceGrpc.newBlockingStub(searchServiceChannel);
+        // Initialize gRPC search client
+        try {
+            GrpcEmbeddedServer grpcServer = context.getBean(GrpcEmbeddedServer.class);
+            int grpcPort = grpcServer.getPort();
+            ManagedChannel searchServiceChannel = ManagedChannelBuilder
+                    .forAddress("localhost", grpcPort)
+                    .usePlaintext()
+                    .build();
+            searchServiceStub = SearchServiceGrpc.newBlockingStub(searchServiceChannel);
+            log.info("Search service gRPC client initialized successfully.");
+        } catch (Exception e) {
+            log.error("Failed to initialize search service gRPC client: {}", e.getMessage(), e);
+            throw e;
+        }
 
         // Call parent setup method to initialize Solr
         super.setUp();
+        log.info("Solr setup completed.");
     }
+
 
     @AfterAll
     public void afterAll() throws Exception {
