@@ -1,11 +1,13 @@
 package com.krickert.search.api.grpc;
 
-import com.krickert.search.api.*;
+import com.krickert.search.api.SearchRequest;
+import com.krickert.search.api.SearchResponse;
+import com.krickert.search.api.SearchServiceGrpc;
 import com.krickert.search.api.config.CollectionConfig;
 import com.krickert.search.api.config.SearchApiConfig;
-import com.krickert.search.api.grpc.mapper.response.ResponseMapper;
 import com.krickert.search.api.grpc.mapper.query.SolrQueryBuilder;
 import com.krickert.search.api.grpc.mapper.query.SolrQueryData;
+import com.krickert.search.api.grpc.mapper.response.ResponseMapper;
 import com.krickert.search.api.solr.SolrService;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -29,7 +31,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
 
     @Inject
     public SearchServiceImpl(SolrService solrService, SearchApiConfig config,
-                            SolrQueryBuilder solrQueryBuilder,ResponseMapper responseMapper) {
+                             SolrQueryBuilder solrQueryBuilder, ResponseMapper responseMapper) {
         this.solrService = solrService;
         this.collectionConfig = config.getSolr().getCollectionConfig();
         this.solrQueryBuilder = solrQueryBuilder;
@@ -46,7 +48,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             QueryResponse solrResponse = solrService.query(collectionConfig.getCollectionName(), solrQueryData.getQueryParams());
 
             // Parse the Solr response into the gRPC SearchResponse
-            SearchResponse searchResponse = responseMapper.mapToSearchResponse(solrResponse, request, solrQueryData.getFl());
+            SearchResponse searchResponse = responseMapper.mapToSearchResponse(solrResponse, request);
 
             // Send the response back to the client
             responseObserver.onNext(searchResponse);

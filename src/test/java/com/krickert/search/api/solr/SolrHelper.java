@@ -60,8 +60,21 @@ public class SolrHelper {
      * @param topK The number of top results to fetch.
      * @return The vector query string.
      */
-    public static String buildVectorQuery(String field, List<Float> embeddings, int topK) {
-        String vectorString = embeddings.stream()
+    public static String buildVectorQuery(String field, List<?> embeddings, int topK) {
+        // Convert the list to List<Float> to ensure consistency
+        List<Float> floatEmbeddings = embeddings.stream()
+                .map(embedding -> {
+                    if (embedding instanceof Double) {
+                        return ((Double) embedding).floatValue();
+                    } else if (embedding instanceof Float) {
+                        return (Float) embedding;
+                    } else {
+                        throw new IllegalArgumentException("Embeddings must be of type Double or Float");
+                    }
+                })
+                .collect(Collectors.toList());
+
+        String vectorString = floatEmbeddings.stream()
                 .map(String::valueOf)
                 .collect(Collectors.joining(","));
 

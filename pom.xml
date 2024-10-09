@@ -75,6 +75,10 @@
             <scope>compile</scope>
         </dependency>
         <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.micronaut</groupId>
             <artifactId>micronaut-jackson-databind</artifactId>
             <scope>compile</scope>
@@ -124,6 +128,12 @@
             <artifactId>micronaut-openapi-annotations</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/io.micronaut.grpc/micronaut-protobuff-support -->
+        <dependency>
+            <groupId>io.micronaut.grpc</groupId>
+            <artifactId>micronaut-protobuff-support</artifactId>
+        </dependency>
+
         <!-- https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter -->
         <dependency>
             <groupId>org.mockito</groupId>

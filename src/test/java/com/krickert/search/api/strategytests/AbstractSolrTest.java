@@ -12,6 +12,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -63,7 +64,14 @@ public abstract class AbstractSolrTest {
 
     @BeforeAll
     public void setUp() throws Exception {
-        // Solr container is already started in the static block
+        if (!solrContainer.isRunning()) {
+            solrContainer.start();
+        }
+        if (solrClient == null) {
+            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+            log.info("Solr client can be accessed at {}", solrBaseUrl);
+        }
+
         log.info("AbstractSolrTest setUp completed.");
     }
 
@@ -78,10 +86,21 @@ public abstract class AbstractSolrTest {
 
     @BeforeEach
     public void beforeEach() throws Exception {
+        checkSolrConnection();
         log.info("Setting up Solr collections and schema.");
         setupSolrCollectionsAndSchema();
         log.info("Seeding Solr collections with data.");
         seedCollection();
+    }
+
+    private void checkSolrConnection() {
+        try {
+            solrClient.ping("dummy");
+        } catch (SolrServerException | IOException e) {
+            log.debug("exception thrown", e);
+            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
+        }
+
     }
 
     @AfterEach

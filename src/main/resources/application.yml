@@ -9,6 +9,24 @@ micronaut:
       swagger-ui:
         paths: classpath:META-INF/swagger/views/swagger-ui
         mapping: /swagger-ui/**
+  server:
+    cors:
+      enabled: true
+      configurations:
+        all:
+          allowedOrigins:
+            - "http://localhost:3000"
+          allowedMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          allowedHeaders:
+            - "Content-Type"
+            - "Accept"
+            - "Authorization"
+          maxAge: 3600
   security:
     authentication: bearer
     token:
