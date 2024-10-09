@@ -11,9 +11,9 @@ search-api:
       debug: false
       include-fields:
         - title
-        - body
       exclude-fields:
         - body-paragraphs
+        - body
     collection-config:
       collection-name: documents
       keyword-query-fields:
