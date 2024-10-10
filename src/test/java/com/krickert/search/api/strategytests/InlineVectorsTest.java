@@ -18,22 +18,6 @@ public class InlineVectorsTest extends AbstractInlineTest {
 
     private static final Logger log = LoggerFactory.getLogger(InlineVectorsTest.class);
 
-    @BeforeEach
-    public void checkSolrConnection() {
-        try {
-            solrClient.ping("dummy");
-        } catch (SolrServerException | IOException e) {
-            log.debug("exception thrown", e);
-            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
-        }
-
-    }
-
-    @AfterEach
-    public void tearDownTest() {
-        // Any cleanup after each test can be added here
-    }
-
     @Test
     @DisplayName("Semantic and Keyword Search using New Search API")
     public void testSearchUsingSearchAPI() throws Exception {

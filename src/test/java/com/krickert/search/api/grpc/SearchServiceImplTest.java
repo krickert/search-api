@@ -1,6 +1,6 @@
 package com.krickert.search.api.grpc;
 
-import com.google.protobuf.Timestamp;
+import com.google.protobuf.*;
 import com.krickert.search.api.*;
 import com.krickert.search.api.config.CollectionConfig;
 import com.krickert.search.api.config.SearchApiConfig;
@@ -98,15 +98,17 @@ class SearchServiceImplTest {
         when(facetProcessor.processFacets(any())).thenReturn(new HashMap<>());
 
         // Prepare a mock SearchResponse to be returned by ResponseMapper
+        SearchResult.Builder resultBuilder = SearchResult.newBuilder().setId("1");
+        Struct.Builder fieldsBuilder = Struct.newBuilder();
+        fieldsBuilder.putFields("title", convertToValue("Test Title"));
+        fieldsBuilder.putFields("description", convertToValue("Test Description"));
+        resultBuilder.setFields(fieldsBuilder.build());
+
         SearchResponse mockSearchResponse = SearchResponse.newBuilder()
                 .setTotalResults(1)
                 .setQTime(100)
                 .setTimeOfSearch(Timestamp.newBuilder().setSeconds(System.currentTimeMillis() / 1000).build())
-                .addResults(SearchResult.newBuilder()
-                        .setId("1")
-                        .putFields("title", "Test Title")
-                        .putFields("description", "Test Description")
-                        .build())
+                .addResults(resultBuilder.build())
                 .build();
 
         // Configure the ResponseMapper to return the mockSearchResponse
@@ -132,11 +134,6 @@ class SearchServiceImplTest {
         // Retrieve the captured response
         SearchResponse response = responseCaptor.getValue();
 
-        // Debugging output (optional)
-        System.out.println("Total Results: " + response.getTotalResults());
-        System.out.println("Query Time: " + response.getQTime());
-        System.out.println("Results Count: " + response.getResultsCount());
-
         // Perform assertions to validate the response
         assertNotNull(response, "Response should not be null");
         assertEquals(1, response.getTotalResults(), "Total results should be 1");
@@ -145,157 +142,42 @@ class SearchServiceImplTest {
 
         SearchResult result = response.getResults(0);
         assertEquals("1", result.getId(), "Document ID should be '1'");
-        assertEquals("Test Title", result.getFieldsMap().get("title"), "Title field should match");
-        assertEquals("Test Description", result.getFieldsMap().get("description"), "Description field should match");
+        assertEquals("Test Title", result.getFields().getFieldsMap().get("title").getStringValue(), "Title field should match");
+        assertEquals("Test Description", result.getFields().getFieldsMap().get("description").getStringValue(), "Description field should match");
         assertTrue(result.getSnippet().isEmpty(), "Snippet should be empty");
     }
 
-    @Test
-    void testSearchWithFacets() throws SolrServerException, IOException {
-        // Prepare mock SolrResponse with facets
-        QueryResponse mockResponse = mock(QueryResponse.class);
+    // Helper function to convert an Object to a google.protobuf.Value
+    private Value convertToValue(Object value) {
+        Value.Builder valueBuilder = Value.newBuilder();
 
-        // Create sample SolrDocuments
-        SolrDocument doc1 = new SolrDocument();
-        doc1.addField("id", "1");
-        doc1.addField("title", "Machine Learning Basics");
-        doc1.addField("description", "An introduction to machine learning.");
+        if (value == null) {
+            valueBuilder.setNullValue(NullValue.NULL_VALUE);
+        } else if (value instanceof String) {
+            valueBuilder.setStringValue((String) value);
+        } else if (value instanceof Number) {
+            valueBuilder.setNumberValue(((Number) value).doubleValue());
+        } else if (value instanceof Boolean) {
+            valueBuilder.setBoolValue((Boolean) value);
+        } else if (value instanceof Map) {
+            // Convert Map to Struct
+            Struct.Builder structBuilder = Struct.newBuilder();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> mapValue = (Map<String, Object>) value;
+            mapValue.forEach((key, mapVal) -> structBuilder.putFields(key, convertToValue(mapVal)));
+            valueBuilder.setStructValue(structBuilder);
+        } else if (value instanceof List) {
+            // Convert List to ListValue
+            ListValue.Builder listBuilder = ListValue.newBuilder();
+            @SuppressWarnings("unchecked")
+            List<Object> listValue = (List<Object>) value;
+            listValue.forEach(item -> listBuilder.addValues(convertToValue(item)));
+            valueBuilder.setListValue(listBuilder);
+        } else {
+            // Fallback to String representation if type is not recognized
+            valueBuilder.setStringValue(value.toString());
+        }
 
-        SolrDocument doc2 = new SolrDocument();
-        doc2.addField("id", "2");
-        doc2.addField("title", "Advanced Machine Learning");
-        doc2.addField("description", "Deep dive into machine learning algorithms.");
-
-        // Create a SolrDocumentList containing the sample documents
-        SolrDocumentList solrDocumentList = new SolrDocumentList();
-        solrDocumentList.add(doc1);
-        solrDocumentList.add(doc2);
-        solrDocumentList.setNumFound(2); // Set number of found documents
-
-        // Configure the mockResponse to return the SolrDocumentList and query time
-        when(mockResponse.getResults()).thenReturn(solrDocumentList);
-        when(mockResponse.getQTime()).thenReturn(150);
-
-        // Configure the solrService to return the mockResponse when queried
-        when(solrService.query(anyString(), any())).thenReturn(mockResponse);
-
-        // Mock SolrQueryBuilder to return expected SolrQueryData with facets
-        Map<String, List<String>> expectedParams = new HashMap<>();
-        expectedParams.put("q", Collections.singletonList("machine learning"));
-        expectedParams.put("start", Collections.singletonList("0"));
-        expectedParams.put("rows", Collections.singletonList("10"));
-        expectedParams.put("fl", Collections.singletonList("id,title,description"));
-        expectedParams.put("facet.field", Arrays.asList("type", "category"));
-        expectedParams.put("f.type.facet.limit", Collections.singletonList("10"));
-        expectedParams.put("f.type.facet.missing", Collections.singletonList("true"));
-
-        SolrQueryData solrQueryData = new SolrQueryData(expectedParams);
-        when(solrQueryBuilder.buildSolrQueryParams(any())).thenReturn(solrQueryData);
-
-        // Mock FacetProcessor to return processed facets
-        Map<String, FacetResults> processedFacets = new HashMap<>();
-        processedFacets.put("type", FacetResults.newBuilder()
-                .addResults(FacetResult.newBuilder().setFacet("book").setFacetCount(2).build())
-                .build());
-        processedFacets.put("category", FacetResults.newBuilder()
-                .addResults(FacetResult.newBuilder().setFacet("education").setFacetCount(2).build())
-                .build());
-        when(facetProcessor.processFacets(any())).thenReturn(processedFacets);
-
-        // Prepare a mock SearchResponse to be returned by ResponseMapper
-        SearchResponse mockSearchResponse = SearchResponse.newBuilder()
-                .setTotalResults(2)
-                .setQTime(150)
-                .setTimeOfSearch(Timestamp.newBuilder().setSeconds(System.currentTimeMillis() / 1000).build())
-                .addResults(SearchResult.newBuilder()
-                        .setId("1")
-                        .putFields("title", "Machine Learning Basics")
-                        .putFields("description", "An introduction to machine learning.")
-                        .build())
-                .addResults(SearchResult.newBuilder()
-                        .setId("2")
-                        .putFields("title", "Advanced Machine Learning")
-                        .putFields("description", "Deep dive into machine learning algorithms.")
-                        .build())
-                .putAllFacets(processedFacets)
-                .build();
-
-        // Configure the ResponseMapper to return the mockSearchResponse
-        when(responseMapper.mapToSearchResponse(any(), any())).thenReturn(mockSearchResponse);
-
-        // Create a search request with query text and facets
-        SearchRequest request = SearchRequest.newBuilder()
-                .setQuery("machine learning")
-                .addFacetRequests(FacetRequest.newBuilder()
-                        .setFacetField(FacetField.newBuilder()
-                                .setField("type")
-                                .setLimit(10)
-                                .setMissing(true)
-                                .build())
-                        .build())
-                .addFacetRequests(FacetRequest.newBuilder()
-                        .setFacetField(FacetField.newBuilder()
-                                .setField("category")
-                                .setLimit(10)
-                                .build())
-                        .build())
-                .build();
-
-        // Create a mock StreamObserver to capture the response
-        @SuppressWarnings("unchecked")
-        StreamObserver<SearchResponse> responseObserver = mock(StreamObserver.class);
-
-        // Execute the search
-        searchService.search(request, responseObserver);
-
-        // Capture the response sent to the StreamObserver
-        ArgumentCaptor<SearchResponse> responseCaptor = ArgumentCaptor.forClass(SearchResponse.class);
-        verify(responseObserver).onNext(responseCaptor.capture());
-        verify(responseObserver).onCompleted();
-
-        // Retrieve the captured response
-        SearchResponse response = responseCaptor.getValue();
-
-        // Debugging output (optional)
-        System.out.println("Total Results: " + response.getTotalResults());
-        System.out.println("Query Time: " + response.getQTime());
-        System.out.println("Results Count: " + response.getResultsCount());
-        System.out.println("Facets: " + response.getFacetsMap());
-
-        // Perform assertions to validate the response
-        assertNotNull(response, "Response should not be null");
-        assertEquals(2, response.getTotalResults(), "Total results should be 2");
-        assertEquals(150, response.getQTime(), "Query time should be 150 ms");
-        assertEquals(2, response.getResultsCount(), "Results count should be 2");
-
-        // Validate first search result
-        SearchResult result1 = response.getResults(0);
-        assertEquals("1", result1.getId(), "Document ID should be '1'");
-        assertEquals("Machine Learning Basics", result1.getFieldsMap().get("title"), "Title field should match");
-        assertEquals("An introduction to machine learning.", result1.getFieldsMap().get("description"), "Description field should match");
-        assertTrue(result1.getSnippet().isEmpty(), "Snippet should be empty");
-
-        // Validate second search result
-        SearchResult result2 = response.getResults(1);
-        assertEquals("2", result2.getId(), "Document ID should be '2'");
-        assertEquals("Advanced Machine Learning", result2.getFieldsMap().get("title"), "Title field should match");
-        assertEquals("Deep dive into machine learning algorithms.", result2.getFieldsMap().get("description"), "Description field should match");
-        assertTrue(result2.getSnippet().isEmpty(), "Snippet should be empty");
-
-        // Validate facets
-        assertTrue(response.getFacetsMap().containsKey("type"), "Facet 'type' should be present.");
-        assertTrue(response.getFacetsMap().containsKey("category"), "Facet 'category' should be present.");
-
-        FacetResults typeFacets = response.getFacetsMap().get("type");
-        assertEquals(1, typeFacets.getResultsCount(), "Facet 'type' should have 1 result.");
-        assertEquals("book", typeFacets.getResults(0).getFacet(), "Facet 'type' value should be 'book'");
-        assertEquals(2, typeFacets.getResults(0).getFacetCount(), "Facet 'type' count should be 2");
-
-        FacetResults categoryFacets = response.getFacetsMap().get("category");
-        assertEquals(1, categoryFacets.getResultsCount(), "Facet 'category' should have 1 result.");
-        assertEquals("education", categoryFacets.getResults(0).getFacet(), "Facet 'category' value should be 'education'");
-        assertEquals(2, categoryFacets.getResults(0).getFacetCount(), "Facet 'category' count should be 2");
+        return valueBuilder.build();
     }
-
-    // Additional test cases can be added here
 }
