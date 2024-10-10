@@ -1,4 +1,10 @@
 micronaut:
+  caches:
+    vectorCache:
+      maximum-size: 1000
+      expire-after-write: 1h
+  jcache:
+    enabled: true
   application:
     name: search-api
   router:

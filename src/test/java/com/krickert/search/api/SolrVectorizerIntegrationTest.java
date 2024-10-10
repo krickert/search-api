@@ -1,6 +1,5 @@
 package com.krickert.search.api;
 
-import com.krickert.search.api.cache.VectorCache;
 import com.krickert.search.api.solr.ProtobufToSolrDocument;
 import com.krickert.search.api.solr.SolrTest;
 import com.krickert.search.model.pipe.PipeDocument;
@@ -58,9 +57,6 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
     @Inject
     ApplicationContext context;
 
-    @Inject
-    VectorCache vectorCache;
-
     @BeforeAll
     @Override
     @SuppressWarnings("resource")
@@ -98,22 +94,14 @@ public class SolrVectorizerIntegrationTest extends SolrTest {
     }
 
     private List<Float> getOrCacheVector(String text) {
-        String hash = DigestUtils.sha256Hex(text);
-        if (vectorCache.containsVector(hash)) {
-            log.debug("Loading vector from cache for text: {}", text);
-            return vectorCache.getVector(hash).get();  // Use hash here
-        } else {
-            log.debug("Generating vector from vectorizer for text: {}", text);
-            EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient = context.getBean(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
-            EmbeddingsVectorReply reply = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(text).build());
+        log.debug("Generating vector from vectorizer for text: {}", text);
+        EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient = context.getBean(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
+        EmbeddingsVectorReply reply = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText(text).build());
 
-            List<Float> vector = reply.getEmbeddingsList();
-            assertNotNull(vector);
-            assertEquals(384, vector.size(), "Vector size should be 384.");
-
-            vectorCache.addVector(hash, vector);
-            return vector;
-        }
+        List<Float> vector = reply.getEmbeddingsList();
+        assertNotNull(vector);
+        assertEquals(384, vector.size(), "Vector size should be 384.");
+        return vector;
     }
 
     @Test

@@ -26,20 +26,6 @@ public abstract class AbstractSolrTest extends SolrTest {
     protected List<String> collectionsCreated = new ArrayList<>();
     protected static final Logger log = LoggerFactory.getLogger(AbstractSolrTest.class);
 
-    @Container
-    public static SolrContainer solrContainer = new SolrContainer(DockerImageName.parse("solr:9.7.0")) {
-        @Override
-        protected void configure() {
-            this.addExposedPort(8983);
-            String command = "solr -c -f";
-            this.setCommand(command);
-            this.waitStrategy =
-                    new LogMessageWaitStrategy()
-                            .withRegEx(".*Server Started.*")
-                            .withStartupTimeout(Duration.of(180, ChronoUnit.SECONDS));
-        }
-    };
-
     protected static Http2SolrClient solrClient;
     protected static String solrBaseUrl = null;
 
@@ -72,42 +58,10 @@ public abstract class AbstractSolrTest extends SolrTest {
         solrBaseUrl = "http://" + host + ":" + port + "/solr";
         solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
         log.info("Initialized SolrClient with base URL: {}", solrBaseUrl);
-    }
-
-
-
-    @AfterAll
-    public void tearDown() throws Exception {
-        if (solrClient != null) {
-            solrClient.close();
-        }
-        solrContainer.stop();
-        log.info("AbstractSolrTest tearDown completed.");
-    }
-
-    @BeforeEach
-    public void beforeEach() throws Exception {
-        checkSolrConnection();
         log.info("Setting up Solr collections and schema.");
         setupSolrCollectionsAndSchema();
         log.info("Seeding Solr collections with data.");
         seedCollection();
-    }
-
-    private void checkSolrConnection() {
-        try {
-            solrClient.ping("dummy");
-        } catch (SolrServerException | IOException e) {
-            log.debug("exception thrown", e);
-            solrClient = new Http2SolrClient.Builder(solrBaseUrl).build();
-        }
-
-    }
-
-    @AfterEach
-    public void afterEach() throws Exception {
-        log.info("Deleting collections.");
-        deleteCollections();
     }
 
     /**
@@ -125,7 +79,7 @@ public abstract class AbstractSolrTest extends SolrTest {
     /**
      * Deletes the collections created during the test.
      */
-    protected void deleteCollections() throws Exception {
+    private void deleteCollections() throws Exception {
         log.info("Deleting collections.");
         if (solrClient != null) {
             for (String collection : collectionsCreated) {

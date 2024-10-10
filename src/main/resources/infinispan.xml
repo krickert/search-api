@@ -1,0 +1,15 @@
+<infinispan
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:infinispan:config:10.1 https://infinispan.org/schemas/infinispan-config-10.1.xsd"
+        xmlns="urn:infinispan:config:10.1">
+
+    <local-cache name="vectorCache">
+        <persistence>
+            <file-store path="infinispan-cache" />
+        </persistence>
+        <memory>
+            <max-count>1000</max-count>
+        </memory>
+        <expiration lifespan="3600000"/> <!-- 1 hour lifespan -->
+    </local-cache>
+</infinispan>
