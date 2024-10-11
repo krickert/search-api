@@ -1,6 +1,5 @@
-package com.krickert.search.api.solr;
+package com.krickert.search.api.test.old;
 
-import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.junit.jupiter.api.*;
@@ -11,7 +10,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 
@@ -63,7 +61,7 @@ public abstract class SolrTest {
 
     @BeforeEach
     public void beforeEach() throws Exception {
-        checkSolrConnection();
+        //checkSolrConnection();
         log.info("Setting up test.\n\nSolr client can be accessed at {}\n\n\n", solrBaseUrl);
         // Create collection before each test
         CollectionAdminRequest.Create createCollection = CollectionAdminRequest.createCollection(DEFAULT_COLLECTION, 1, 1);

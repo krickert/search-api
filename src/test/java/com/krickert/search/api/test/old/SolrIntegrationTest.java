@@ -1,6 +1,5 @@
-package com.krickert.search.api;
+package com.krickert.search.api.test.old;
 
-import com.krickert.search.api.solr.SolrTest;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.UpdateResponse;

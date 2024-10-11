@@ -1,6 +1,5 @@
-package com.krickert.search.api;
+package com.krickert.search.api.test.old;
 
-import com.krickert.search.api.solr.SolrTest;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.env.PropertySource;
 import io.micronaut.runtime.EmbeddedApplication;

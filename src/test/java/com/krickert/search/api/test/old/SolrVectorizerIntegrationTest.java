@@ -1,7 +1,6 @@
-package com.krickert.search.api;
+package com.krickert.search.api.test.old;
 
 import com.krickert.search.api.solr.ProtobufToSolrDocument;
-import com.krickert.search.api.solr.SolrTest;
 import com.krickert.search.model.pipe.PipeDocument;
 import com.krickert.search.model.test.util.TestDataHelper;
 import com.krickert.search.service.EmbeddingServiceGrpc;
@@ -11,7 +10,6 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.env.PropertySource;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;

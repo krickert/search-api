@@ -1,4 +1,4 @@
-package com.krickert.search.api.grpc;
+package com.krickert.search.api.test.old.grpc;
 
 import com.krickert.search.service.EmbeddingServiceGrpc;
 import com.krickert.search.service.EmbeddingsVectorReply;

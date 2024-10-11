@@ -1,4 +1,4 @@
-package com.krickert.search.api.strategytests;
+package com.krickert.search.api.test.old.strategytests;
 
 import com.krickert.search.api.*;
 import org.junit.jupiter.api.DisplayName;

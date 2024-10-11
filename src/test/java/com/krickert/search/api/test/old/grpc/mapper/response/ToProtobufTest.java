@@ -1,9 +1,10 @@
-package com.krickert.search.api.grpc.mapper.response;
+package com.krickert.search.api.test.old.grpc.mapper.response;
 
 import com.google.protobuf.ListValue;
 import com.google.protobuf.NullValue;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
+import com.krickert.search.api.grpc.mapper.response.ToProtobuf;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;

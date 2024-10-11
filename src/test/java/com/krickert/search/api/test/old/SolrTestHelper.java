@@ -1,6 +1,5 @@
-package com.krickert.search.api.test;
+package com.krickert.search.api.test.old;
 
-import com.krickert.search.api.solr.SolrHelper;
 import jakarta.inject.Singleton;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.slf4j.Logger;

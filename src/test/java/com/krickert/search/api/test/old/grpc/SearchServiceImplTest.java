@@ -1,9 +1,10 @@
-package com.krickert.search.api.grpc;
+package com.krickert.search.api.test.old.grpc;
 
 import com.google.protobuf.*;
 import com.krickert.search.api.*;
 import com.krickert.search.api.config.CollectionConfig;
 import com.krickert.search.api.config.SearchApiConfig;
+import com.krickert.search.api.grpc.SearchServiceImpl;
 import com.krickert.search.api.grpc.mapper.query.SolrQueryBuilder;
 import com.krickert.search.api.grpc.mapper.query.SolrQueryData;
 import com.krickert.search.api.grpc.mapper.response.FacetProcessor;
