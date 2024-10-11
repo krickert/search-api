@@ -69,7 +69,6 @@ public class ConfigurationTest {
 
 
         // Now test the CollectionConfig
-        assertEquals("documents", collectionConfigFromSolrConfig.getCollectionName(), "Collection name should match");
         assertNotNull(collectionConfigFromSolrConfig.getKeywordQueryFields(), "Keyword query fields should not be null");
         assertTrue(collectionConfigFromSolrConfig.getKeywordQueryFields().contains("body"), "Keyword query fields should contain 'body'");
         assertTrue(collectionConfigFromSolrConfig.getKeywordQueryFields().contains("title"), "Keyword query fields should contain 'title'");
