@@ -1,8 +1,10 @@
 package com.krickert.search.api.test.base;
 
+import com.krickert.search.api.test.TestContainersManager;
 import com.krickert.search.model.pipe.PipeDocument;
 import com.krickert.search.model.test.util.TestDataHelper;
 import org.apache.solr.common.SolrInputDocument;
+import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.*;
@@ -13,6 +15,8 @@ public abstract class AbstractInlineTest extends BaseSearchApiTest {
 
     protected static final Logger log = LoggerFactory.getLogger(AbstractInlineTest.class);
 
+
+    @BeforeEach
     @Override
     public void setUp() {
         super.setUp();
@@ -22,7 +26,10 @@ public abstract class AbstractInlineTest extends BaseSearchApiTest {
             throw new RuntimeException(e);
         }
     }
+
     protected void seedCollection() throws Exception {
+        solrClient = TestContainersManager.createSolrClient();
+        log.info("Seeding collection {}", getCollectionName());
         Collection<PipeDocument> docs = TestDataHelper.getFewHunderedPipeDocuments();
         List<SolrInputDocument> solrDocs = Collections.synchronizedList(new ArrayList<>());
         // Use a custom ForkJoinPool to limit parallelism if needed
@@ -60,7 +67,7 @@ public abstract class AbstractInlineTest extends BaseSearchApiTest {
         // Add documents to Solr
         try {
             solrClient.add(getCollectionName(), solrDocs);
-            solrClient.commit(getChunkCollectionName());
+            solrClient.commit(getCollectionName());
             log.info("Added {} documents to Solr collection '{}'.", solrDocs.size(), getCollectionName());
         } catch (Exception e) {
             log.error("Failed to add documents to Solr: {}", e.getMessage());

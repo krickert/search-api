@@ -2,6 +2,7 @@ package com.krickert.search.api.test.basic;
 
 import com.krickert.search.api.*;
 import com.krickert.search.api.test.base.AbstractInlineTest;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.grpc.annotation.GrpcChannel;
 import io.micronaut.grpc.server.GrpcServerChannel;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
@@ -12,16 +13,14 @@ import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
+
 @MicronautTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("Advanced Inline Vectors Search Tests")
 public class AdvancedInlineVectorsTest extends AbstractInlineTest {
 
     private static final Logger log = LoggerFactory.getLogger(AdvancedInlineVectorsTest.class);
-
-    @Inject
-    @GrpcChannel(GrpcServerChannel.NAME)
-    SearchServiceGrpc.SearchServiceBlockingStub searchService;
 
     @Test
     @DisplayName("Combined Semantic and Keyword Search with Facets")
@@ -73,7 +72,7 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
                 .build();
 
         // Execute the search request using the gRPC stub
-        SearchResponse combinedResponse = searchService.search(combinedSearchRequest);
+        SearchResponse combinedResponse = searchServiceStub.search(combinedSearchRequest);
 
         // Validate and log the response
         validateAndLogResponse("Combined Semantic and Keyword Search Results", combinedResponse);
@@ -91,4 +90,5 @@ public class AdvancedInlineVectorsTest extends AbstractInlineTest {
     protected String getChunkCollectionName() {
         return null;
     }
+
 }

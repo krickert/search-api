@@ -49,7 +49,7 @@ grpc:
     max-retry-attempts: 10
 search-api:
   vector-default:
-    vector-grpc-channel: ${sys:search-api.vector-grpc-channel} # Dynamically set via system property
+    vector-grpc-channel: ${sys:search-api.vector-default.vector-grpc-channel} # Dynamically set via system property
     vector-grpc-display-name: all-Mini-LM-embeddings-384
   solr:
     url: http://localhost:8983/solr

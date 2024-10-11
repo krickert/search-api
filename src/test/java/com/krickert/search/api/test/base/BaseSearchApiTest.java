@@ -2,26 +2,30 @@ package com.krickert.search.api.test.base;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.krickert.search.api.FacetResult;
-import com.krickert.search.api.FacetResults;
-import com.krickert.search.api.SearchResponse;
-import com.krickert.search.api.SearchResult;
+import com.krickert.search.api.*;
 import com.krickert.search.api.grpc.client.VectorService;
+import com.krickert.search.api.solr.EmbeddedInfinispanCache;
 import com.krickert.search.api.solr.ProtobufToSolrDocument;
-import com.krickert.search.api.solr.SolrService;
 import com.krickert.search.api.test.TestContainersManager;
+import com.krickert.search.service.PipeServiceGrpc;
+import io.grpc.ManagedChannel;
 import io.micronaut.context.ApplicationContext;
-import io.micronaut.context.env.PropertySource;
-import io.micronaut.core.util.StringUtils;
+import io.micronaut.context.annotation.Bean;
+import io.micronaut.context.annotation.Property;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.grpc.annotation.GrpcChannel;
+import io.micronaut.grpc.server.GrpcServerChannel;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import io.micronaut.test.support.TestPropertyProvider;
 import jakarta.inject.Inject;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
-import org.apache.solr.common.util.NamedList;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInstance;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 import static com.krickert.search.api.solr.SolrHelper.addDenseVectorField;
@@ -30,46 +34,43 @@ import static io.micronaut.core.util.StringUtils.isNotEmpty;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public abstract class BaseSearchApiTest extends BaseSolrTest {
+@MicronautTest
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public abstract class BaseSearchApiTest extends BaseSolrTest implements TestPropertyProvider {
 
     protected ApplicationContext context;
 
     protected ProtobufToSolrDocument protobufToSolrDocument = new ProtobufToSolrDocument();
     protected VectorService vectorService = null;
 
+    @Override
+    public @NonNull Map<String, String> getProperties() {
+        return Map.of(
+                "search-api.solr.collection-config.collection-name", getCollectionName(),
+                "search-api.vector-default.vector-grpc-channel", TestContainersManager.getVectorizerUrl(),
+                "search-api.solr.url", TestContainersManager.getSolrBaseUrl()
+        );
+    }
+
+    @Inject
+    protected SearchServiceGrpc.SearchServiceBlockingStub searchServiceStub;
+
+    @Bean
+    SearchServiceGrpc.SearchServiceBlockingStub serviceBlockingStub(
+            @GrpcChannel(GrpcServerChannel.NAME)
+            ManagedChannel channel) {
+        return SearchServiceGrpc.newBlockingStub(
+                channel
+        );
+    }
+
     @BeforeEach
     public void setUp() {
+        log.info("Setting up base api");
         super.setUp();
-        // Initialize Micronaut application context
-        context = ApplicationContext.run();
-        context.getEnvironment()
-                .addPropertySource(
-                        PropertySource.of(
-                                "test", Collections.singletonMap(
-                                        "search-api.solr.url",
-                                        TestContainersManager.getSolrBaseUrl())
-                        ));
-        context.getEnvironment()
-                .addPropertySource(
-                        PropertySource.of(
-                                "test", Collections.singletonMap(
-                                        "search-api.vector-default.vector-grpc-channel",
-                                        TestContainersManager.getVectorizerUrl())
-                        ));
-        //search-api.solr.collection-config.collection-name
-
-        context.getEnvironment()
-                .addPropertySource(
-                        PropertySource.of(
-                                "test", Collections.singletonMap(
-                                        "search-api.solr.collection-config.collection-name",
-                                        getChunkCollectionName())
-                        ));
-        // Inject or configure VectorService with the appropriate gRPC stub
-        VectorService vectorService = context.getBean(VectorService.class);
-        vectorService.updateEmbeddingClient(embeddingServiceStub);
-        this.vectorService = vectorService;
+        this.vectorService = new VectorService(embeddingServiceStub, new EmbeddedInfinispanCache());
     }
+
 
     @AfterEach
     public void tearDown() throws IOException {
@@ -157,6 +158,7 @@ public abstract class BaseSearchApiTest extends BaseSolrTest {
     @Override
     protected void deleteCollections() {
         try {
+            solrClient = TestContainersManager.createSolrClient();
             log.info("deleting collections");
             // Delete collection after each test
             log.info("Deleting temporary collection: {}", getCollectionName());
@@ -171,4 +173,6 @@ public abstract class BaseSearchApiTest extends BaseSolrTest {
             throw new RuntimeException("Failed to delete collections: " + e.getMessage(), e);
         }
     }
+
+
 }

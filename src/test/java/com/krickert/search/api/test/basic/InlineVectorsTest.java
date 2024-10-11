@@ -1,22 +1,29 @@
 package com.krickert.search.api.test.basic;
 
 import com.krickert.search.api.*;
+import com.krickert.search.api.test.TestContainersManager;
 import com.krickert.search.api.test.base.AbstractInlineTest;
+import io.micronaut.context.annotation.Property;
 import io.micronaut.grpc.annotation.GrpcChannel;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@MicronautTest(environments = {"test-inline", "test"})
+@MicronautTest
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("Inline Vectors Search Tests")
 public class InlineVectorsTest extends AbstractInlineTest {
-
-    @Inject
-    @GrpcChannel("search-service")
-    SearchServiceGrpc.SearchServiceBlockingStub searchServiceStub;
+    @BeforeAll
+    public static void setEnvironmentVariables() {
+        System.setProperty("search-api.solr.url", TestContainersManager.getSolrBaseUrl());
+        System.setProperty("search-api.vector-default.vector-grpc-channel", TestContainersManager.getVectorizerUrl());
+        System.setProperty("search-api.solr.collection-config.collection-name", "inline-vectors-test-collection");
+    }
 
     private static final Logger log = LoggerFactory.getLogger(InlineVectorsTest.class);
 

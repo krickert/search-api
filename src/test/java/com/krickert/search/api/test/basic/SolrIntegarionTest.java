@@ -1,15 +1,15 @@
 package com.krickert.search.api.test.basic;
 
 import com.krickert.search.api.test.base.BaseSearchApiTest;
-import io.micronaut.context.ApplicationContext;
-import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
-import jakarta.inject.Inject;
+import io.micronaut.core.annotation.NonNull;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.UpdateResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -62,5 +62,15 @@ public class SolrIntegarionTest extends BaseSearchApiTest {
     @Override
     protected String getChunkCollectionName() {
         return null;
+    }
+
+    @Override
+    public Map<String, String> get() {
+        return super.get();
+    }
+
+    @Override
+    public @NonNull Map<String, String> getProperties() {
+        return Map.of();
     }
 }

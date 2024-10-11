@@ -5,8 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class CollectionConfigTest {
 
@@ -27,7 +26,7 @@ public class CollectionConfigTest {
 
             CollectionConfig config = context.getBean(CollectionConfig.class);
             assertNotNull(config);
-            assertEquals("documents", config.getCollectionName());
+            assertTrue(config.getCollectionName().contains("test-collection"));
 
             Map<String, VectorFieldInfo> vectorFieldsByName = config.getVectorFieldsByName();
             assertNotNull(vectorFieldsByName);

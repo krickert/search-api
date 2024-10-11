@@ -6,6 +6,7 @@ import com.krickert.search.model.test.util.TestDataHelper;
 import com.krickert.search.service.EmbeddingServiceGrpc;
 import com.krickert.search.service.EmbeddingsVectorReply;
 import com.krickert.search.service.EmbeddingsVectorRequest;
+import io.micronaut.core.annotation.NonNull;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static com.krickert.search.api.solr.SolrHelper.buildVectorQuery;
 import static org.junit.jupiter.api.Assertions.*;
@@ -123,9 +125,7 @@ public class VectorizerIntegrationTest extends BaseSearchApiTest {
     @Test
     public void testVectorizerGRPCConnection() {
         // Now you can access the gRPC client bean (EmbeddingServiceGrpc.EmbeddingServiceBlockingStub)
-        EmbeddingServiceGrpc.EmbeddingServiceBlockingStub gRPCClient = context.getBean(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub.class);
-
-        EmbeddingsVectorReply reply = gRPCClient.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText("Testing 1 2 3").build());
+        EmbeddingsVectorReply reply = embeddingServiceStub.createEmbeddingsVector(EmbeddingsVectorRequest.newBuilder().setText("Testing 1 2 3").build());
         assertNotNull(reply);
         assertEquals(384, reply.getEmbeddingsList().size());
     }
@@ -171,5 +171,15 @@ public class VectorizerIntegrationTest extends BaseSearchApiTest {
         assertNotNull(titleQueryResponse);
         SolrDocumentList titleDocuments = titleQueryResponse.getResults();
         assertEquals(30, titleDocuments.size());
+    }
+
+    @Override
+    public Map<String, String> get() {
+        return super.get();
+    }
+
+    @Override
+    public @NonNull Map<String, String> getProperties() {
+        return Map.of();
     }
 }

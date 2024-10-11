@@ -1,5 +1,6 @@
 package com.krickert.search.api.config;
 
+import com.krickert.search.api.test.TestContainersManager;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
@@ -23,8 +24,6 @@ public class ConfigurationTest {
         // Test SolrConfig
         SearchApiConfig.SolrConfig solrConfig = searchApiConfig.getSolr();
         assertNotNull(solrConfig, "SolrConfig should not be null");
-        assertEquals("dummy-value-auto-generated", solrConfig.getUrl(), "Solr URL should match");
-
         SearchApiConfig.SolrConfig.DefaultSearch defaultSearch = solrConfig.getDefaultSearch();
         assertNotNull(defaultSearch, "DefaultSearch should not be null");
         assertEquals(30, defaultSearch.getRows(), "Rows should match");
@@ -43,7 +42,6 @@ public class ConfigurationTest {
         SearchApiConfig.VectorDefault vectorDefault = searchApiConfig.getVectorDefault();
         // Assertions to test the values of VectorDefault
         assertNotNull(vectorDefault, "VectorDefault should not be null");
-        assertEquals("search-api.vector-grpc-channel", vectorDefault.getVectorGrpcChannel(), "VectorGrpcChannel should match");
         assertEquals("all-Mini-LM-embeddings-384", vectorDefault.getVectorGrpcDisplayName(), "VectorGrpcDisplayName should match");
         // Test Authentication
         SearchApiConfig.SolrConfig.Authentication authentication = solrConfig.getAuthentication();

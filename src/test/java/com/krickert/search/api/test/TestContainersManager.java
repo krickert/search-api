@@ -82,6 +82,7 @@ public final class TestContainersManager {
                 System.setProperty("search-api.solr.url", "http://" + solrContainer.getHost() + ":" + solrContainer.getMappedPort(8983) + "/solr");
                 System.setProperty("search-api.vector-default.vector-grpc-channel", "http://" + vectorizerContainer.getHost() + ":" + vectorizerContainer.getMappedPort(50401));
                 System.setProperty("chunker.url", "http://" + chunkerContainer.getHost() + ":" + chunkerContainer.getMappedPort(50403));
+
             } catch (Exception e) {
                 log.error("Error initializing containers: {}", e.getMessage(), e);
                 throw new RuntimeException(e);
