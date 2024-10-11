@@ -1,4 +1,4 @@
-package com.krickert.search.api.test.old.grpc.mapper.response;
+package com.krickert.search.api.test.util;
 
 import com.google.protobuf.ListValue;
 import com.google.protobuf.NullValue;

@@ -1,16 +1,28 @@
-package com.krickert.search.api.test;
+package com.krickert.search.api.test.base;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
+import com.krickert.search.api.FacetResult;
+import com.krickert.search.api.FacetResults;
+import com.krickert.search.api.SearchResponse;
+import com.krickert.search.api.SearchResult;
+import com.krickert.search.api.test.TestContainersManager;
 import com.krickert.search.service.*;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.slf4j.Logger;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public abstract class BaseSolrTest {
-
+    Logger log = org.slf4j.LoggerFactory.getLogger(BaseSolrTest.class);
     protected Http2SolrClient solrClient;
     protected ManagedChannel vectorizerChannel;
     protected EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingServiceStub;
@@ -60,4 +72,9 @@ public abstract class BaseSolrTest {
     protected abstract void setupCollections();
 
     protected abstract void deleteCollections();
+
+    protected abstract String getCollectionName();
+
+    protected abstract String getChunkCollectionName();
+
 }

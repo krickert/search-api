@@ -115,7 +115,7 @@ public class SolrService {
         // Construct the cURL command with the JSON body
         return String.format(
                 "curl -X POST -H 'Content-Type: application/json' -d '%s' '%s/%s/query'",
-                jsonBuilder.toString(), baseUrl, collection
+                jsonBuilder, baseUrl, collection
         );
     }
 }

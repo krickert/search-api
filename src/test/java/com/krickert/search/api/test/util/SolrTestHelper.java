@@ -1,4 +1,4 @@
-package com.krickert.search.api.test.old;
+package com.krickert.search.api.test.util;
 
 import jakarta.inject.Singleton;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;

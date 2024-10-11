@@ -1,13 +1,10 @@
 package com.krickert.search.api.test;
 
-import com.krickert.search.api.SearchServiceGrpc;
 import com.krickert.search.service.ChunkServiceGrpc;
 import com.krickert.search.service.EmbeddingServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.micronaut.context.annotation.Bean;
-import io.micronaut.grpc.annotation.GrpcChannel;
-import io.micronaut.grpc.server.GrpcServerChannel;
 import jakarta.inject.Singleton;
 import org.apache.solr.client.solrj.impl.Http2SolrClient;
 import org.slf4j.Logger;
@@ -102,6 +99,10 @@ public final class TestContainersManager {
 
     public static String getVectorizerUrl() {
         return "http://" + vectorizerContainer.getHost() + ":" + vectorizerContainer.getMappedPort(50401);
+    }
+
+    public static String getSolrBaseUrl() {
+        return  "http://" + solrContainer.getHost() + ":" + solrContainer.getMappedPort(8983) + "/solr";
     }
 
     @Bean

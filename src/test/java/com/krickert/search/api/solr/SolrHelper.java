@@ -1,10 +1,12 @@
 package com.krickert.search.api.solr;
 
 import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.request.schema.FieldTypeDefinition;
 import org.apache.solr.client.solrj.request.schema.SchemaRequest;
 import org.apache.solr.client.solrj.response.schema.SchemaResponse;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class SolrHelper {
 
-    public static void addDenseVectorField(SolrClient solrClient, String fieldName, int dimensions, String collectionName) throws Exception {
+    public static void addDenseVectorField(SolrClient solrClient, String fieldName, int dimensions, String collectionName) throws SolrServerException, IOException {
         String fieldTypeName = fieldName + dimensions;
 
         addVectorFieldType(solrClient, collectionName, fieldTypeName, dimensions);
@@ -33,7 +35,7 @@ public class SolrHelper {
         }
     }
 
-    private static void addVectorFieldType(SolrClient solrClient, String collectionName, String fieldTypeName, int dimensions) throws Exception {
+    private static void addVectorFieldType(SolrClient solrClient, String collectionName, String fieldTypeName, int dimensions) throws SolrServerException, IOException {
         Map<String, Object> fieldTypeAttributes = new HashMap<>();
         fieldTypeAttributes.put("name", fieldTypeName);
         fieldTypeAttributes.put("class", "solr.DenseVectorField");
@@ -81,11 +83,11 @@ public class SolrHelper {
         return String.format("{!knn f=%s topK=%d}[%s]", field, topK, vectorString);
     }
 
-    public static void addField(SolrClient solrClient, String name, String type, boolean multiValued, String collection) throws Exception {
+    public static void addField(SolrClient solrClient, String name, String type, boolean multiValued, String collection) throws SolrServerException, IOException {
         addField(solrClient, name, type, multiValued, true, true, collection);
     }
 
-    public static void addField(SolrClient solrClient, String name, String type, boolean multiValued, boolean indexed, boolean stored, String collection) throws Exception {
+    public static void addField(SolrClient solrClient, String name, String type, boolean multiValued, boolean indexed, boolean stored, String collection) throws SolrServerException, IOException {
         Map<String, Object> fieldAttributes = new HashMap<>();
         fieldAttributes.put("name", name);
         fieldAttributes.put("type", type);

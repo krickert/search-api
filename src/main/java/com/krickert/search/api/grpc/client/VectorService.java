@@ -38,16 +38,17 @@ public class VectorService {
      * @param text The input text to fetch the embeddings for.
      * @return The list of float embeddings.
      */
+    @Cacheable
     public List<Float> getEmbeddingForText(String text) {
         try {
             String cachedEmbeddingBase64 = vectorCache.get(text);
             if (cachedEmbeddingBase64 != null) {
-                log.info("Cache hit for text: {}", text);
+                log.debug("Cache hit for text: {}", text);
                 byte[] decodedBytes = Base64.getDecoder().decode(cachedEmbeddingBase64);
                 return objectMapper.readValue(decodedBytes, objectMapper.getTypeFactory().constructCollectionType(List.class, Float.class));
             }
 
-            log.info("Fetching embeddings for text: {}", text);
+            log.debug("Fetching embeddings for text: {}", text);
             EmbeddingsVectorRequest request = EmbeddingsVectorRequest.newBuilder()
                     .setText(text)
                     .build();

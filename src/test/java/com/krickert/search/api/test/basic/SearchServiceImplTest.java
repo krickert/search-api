@@ -1,4 +1,4 @@
-package com.krickert.search.api.test.old.grpc;
+package com.krickert.search.api.test.basic;
 
 import com.google.protobuf.*;
 import com.krickert.search.api.*;
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-class SearchServiceImplTest {
+public class SearchServiceImplTest {
 
     private SolrService solrService;
     private SolrQueryBuilder solrQueryBuilder;

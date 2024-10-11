@@ -1,5 +1,9 @@
-package com.krickert.search.api.test.old;
+package com.krickert.search.api.test.basic;
 
+import com.krickert.search.api.test.base.BaseSearchApiTest;
+import io.micronaut.context.ApplicationContext;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import jakarta.inject.Inject;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.response.UpdateResponse;
@@ -9,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class SolrIntegrationTest extends SolrTest {
+public class SolrIntegarionTest extends BaseSearchApiTest {
 
     @Test
     public void testSolrIntegration() throws Exception {
@@ -19,15 +23,15 @@ public class SolrIntegrationTest extends SolrTest {
         document.addField("title", "Test Document");
 
         // Add the document to the collection
-        UpdateResponse updateResponse = solrClient.add("documents", document);
-        solrClient.commit("documents");
+        UpdateResponse updateResponse = solrClient.add(getCollectionName(), document);
+        solrClient.commit(getCollectionName());
 
         // Ensure the document was added successfully
         assertNotNull(updateResponse);
         assertEquals(0, updateResponse.getStatus());
 
         // Query the document
-        QueryResponse queryResponse = solrClient.query("documents", new SolrQuery("id:1"));
+        QueryResponse queryResponse = solrClient.query(getCollectionName(), new SolrQuery("id:1"));
         SolrDocumentList documents = queryResponse.getResults();
 
         // Validate the document is added
@@ -35,18 +39,28 @@ public class SolrIntegrationTest extends SolrTest {
         assertEquals("Test Document", documents.get(0).getFieldValue("title"));
 
         // Delete the document
-        UpdateResponse deleteResponse = solrClient.deleteById("documents", "1");
-        solrClient.commit("documents");
+        UpdateResponse deleteResponse = solrClient.deleteById(getCollectionName(), "1");
+        solrClient.commit(getCollectionName());
 
         // Ensure the document was deleted successfully
         assertNotNull(deleteResponse);
         assertEquals(0, deleteResponse.getStatus());
 
         // Query again to ensure the document is deleted
-        QueryResponse queryResponseAfterDelete = solrClient.query("documents", new SolrQuery("id:1"));
+        QueryResponse queryResponseAfterDelete = solrClient.query(getCollectionName(), new SolrQuery("id:1"));
         SolrDocumentList documentsAfterDelete = queryResponseAfterDelete.getResults();
 
         // Validate the document is deleted
         assertTrue(documentsAfterDelete.isEmpty());
+    }
+
+    @Override
+    protected String getCollectionName() {
+        return "basic-test-collection";
+    }
+
+    @Override
+    protected String getChunkCollectionName() {
+        return null;
     }
 }

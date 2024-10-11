@@ -1,5 +1,6 @@
 package com.krickert.search.api.test;
 
+import com.krickert.search.api.test.base.BaseSolrTest;
 import com.krickert.search.service.*;
 import io.grpc.StatusRuntimeException;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -8,18 +9,21 @@ import org.apache.solr.common.util.NamedList;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TestContainersManagerFunctionalTest extends BaseSolrTest {
 
+    private final String uniqueCollectionName = getClass().getSimpleName() + "-collection-" + Instant.now().toEpochMilli();
+
     @Override
     protected void setupCollections() {
         try {
-            // Create a collection specific for this test
-            String collectionName = getClass().getSimpleName() + "-collection";
-            CollectionAdminRequest.Create createCollection = CollectionAdminRequest.createCollection(collectionName, 1, 1);
-            solrClient.request(createCollection);
+            if (!collectionExists(uniqueCollectionName)) {
+                CollectionAdminRequest.Create createCollection = CollectionAdminRequest.createCollection(uniqueCollectionName, 1, 1);
+                solrClient.request(createCollection);
+            }
         } catch (SolrServerException | IOException e) {
             fail("Failed to create Solr collection: " + e.getMessage());
         }
@@ -28,20 +32,41 @@ public class TestContainersManagerFunctionalTest extends BaseSolrTest {
     @Override
     protected void deleteCollections() {
         try {
-            // Delete the collection after the test
-            String collectionName = getClass().getSimpleName() + "-collection";
-            CollectionAdminRequest.Delete deleteCollection = CollectionAdminRequest.deleteCollection(collectionName);
-            solrClient.request(deleteCollection);
+            if (collectionExists(uniqueCollectionName)) {
+                CollectionAdminRequest.Delete deleteCollection = CollectionAdminRequest.deleteCollection(uniqueCollectionName);
+                solrClient.request(deleteCollection);
+            }
         } catch (SolrServerException | IOException e) {
-            fail("Failed to delete Solr collection: " + e.getMessage());
+            // Log the error but do not fail the test during cleanup
+            System.err.println("Failed to delete Solr collection: " + e.getMessage());
+        }
+    }
+
+    @Override
+    protected String getCollectionName() {
+        return uniqueCollectionName;
+    }
+
+    @Override
+    protected String getChunkCollectionName() {
+        return null;
+    }
+
+    private boolean collectionExists(String collectionName) {
+        try {
+            CollectionAdminRequest.List listRequest = new CollectionAdminRequest.List();
+            NamedList<Object> response = solrClient.request(listRequest);
+            return response.get("collections").toString().contains(collectionName);
+        } catch (SolrServerException | IOException e) {
+            fail("Failed to check if collection exists: " + e.getMessage());
+            return false;
         }
     }
 
     @Test
     public void testSolrContainerIsRunning() {
         try {
-            // Check if Solr is accessible by pinging it
-            NamedList<Object> response = solrClient.ping(getClass().getSimpleName() + "-collection").getResponse();
+            NamedList<Object> response = solrClient.ping(uniqueCollectionName).getResponse();
             assertNotNull(response);
             assertTrue(response.size() > 0);
         } catch (SolrServerException | IOException e) {
@@ -52,7 +77,6 @@ public class TestContainersManagerFunctionalTest extends BaseSolrTest {
     @Test
     public void testVectorizerServiceIsRunning() {
         try {
-            // Make a sample request to the embedding service to check if it is running
             EmbeddingsVectorRequest request = EmbeddingsVectorRequest.newBuilder()
                     .setText("Sample text")
                     .build();
@@ -67,7 +91,6 @@ public class TestContainersManagerFunctionalTest extends BaseSolrTest {
     @Test
     public void testChunkerServiceIsRunning() {
         try {
-            // Make a sample request to the chunker service to check if it is running
             ChunkRequest request = ChunkRequest.newBuilder()
                     .setText("Sample text for chunking")
                     .setOptions(ChunkOptions.newBuilder().setLength(600).setOverlap(100).build())
@@ -83,8 +106,7 @@ public class TestContainersManagerFunctionalTest extends BaseSolrTest {
     @Test
     public void testSolrCollectionCreation() {
         try {
-            // Test if a Solr collection can be created
-            String collectionName = "additional-test-collection";
+            String collectionName = "additional-test-collection-" + Instant.now().toEpochMilli();
             CollectionAdminRequest.Create createCollection = CollectionAdminRequest.createCollection(collectionName, 1, 1);
             NamedList<Object> response = solrClient.request(createCollection);
             assertNotNull(response);
