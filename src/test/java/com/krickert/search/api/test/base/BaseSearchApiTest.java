@@ -68,7 +68,7 @@ public abstract class BaseSearchApiTest extends BaseSolrTest implements TestProp
     public void setUp() {
         log.info("Setting up base api");
         super.setUp();
-        this.vectorService = new VectorService(embeddingServiceStub, new EmbeddedInfinispanCache());
+        this.vectorService = new VectorService(embeddingServiceStub, new EmbeddedInfinispanCache("./vector-cache"));
     }
 
 
