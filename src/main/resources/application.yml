@@ -1,4 +1,10 @@
 micronaut:
+  caches:
+    vectorCache:
+      maximum-size: 1000
+      expire-after-write: 1h
+  jcache:
+    enabled: true
   application:
     name: search-api
   router:
@@ -43,7 +49,8 @@ grpc:
     max-retry-attempts: 10
 search-api:
   vector-default:
-    vector-grpc-channel: ${sys:search-api.vector-grpc-channel} # Dynamically set via system property
+    vector-cache-location: ./vector-cache
+    vector-grpc-channel: ${sys:search-api.vector-default.vector-grpc-channel} # Dynamically set via system property
     vector-grpc-display-name: all-Mini-LM-embeddings-384
   solr:
     url: http://localhost:8983/solr
@@ -90,4 +97,3 @@ search-api:
           vector-field-type: inline
           vector-grpc-service: http://localhost:50401/vectorizer
           k: 10
-          

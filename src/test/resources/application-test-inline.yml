@@ -1,6 +1,6 @@
 search-api:
   vector-default:
-    vector-grpc-channel: ${sys:search-api.vector-grpc-channel} # Dynamically set via system property
+    vector-grpc-channel: ${sys:search-api.vector-default.vector-grpc-channel} # Dynamically set via system property
     vector-grpc-timeout: 5000 # Timeout for gRPC calls in milliseconds
   solr:
     url: ${sys:search-api.solr.url} # Dynamically set via system property

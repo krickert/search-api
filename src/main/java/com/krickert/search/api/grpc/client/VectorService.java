@@ -1,14 +1,18 @@
 package com.krickert.search.api.grpc.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.krickert.search.api.config.VectorFieldInfo;
+import com.krickert.search.api.solr.EmbeddedInfinispanCache;
 import com.krickert.search.service.EmbeddingServiceGrpc;
 import com.krickert.search.service.EmbeddingsVectorReply;
 import com.krickert.search.service.EmbeddingsVectorRequest;
+import io.micronaut.cache.annotation.Cacheable;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.infinispan.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,12 +20,15 @@ import java.util.stream.Collectors;
 public class VectorService {
 
     private static final Logger log = LoggerFactory.getLogger(VectorService.class);
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient;
+    private EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient;
+    private final Cache<String, String> vectorCache;
 
     @Inject
-    public VectorService(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient) {
+    public VectorService(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient, EmbeddedInfinispanCache embeddedInfinispanCache) {
         this.embeddingClient = embeddingClient;
+        this.vectorCache = embeddedInfinispanCache.getCache();
     }
 
     /**
@@ -30,14 +37,30 @@ public class VectorService {
      * @param text The input text to fetch the embeddings for.
      * @return The list of float embeddings.
      */
+    @Cacheable
     public List<Float> getEmbeddingForText(String text) {
         try {
+            String cachedEmbeddingBase64 = vectorCache.get(text);
+            if (cachedEmbeddingBase64 != null) {
+                log.debug("Cache hit for text: {}", text);
+                byte[] decodedBytes = Base64.getDecoder().decode(cachedEmbeddingBase64);
+                return objectMapper.readValue(decodedBytes, objectMapper.getTypeFactory().constructCollectionType(List.class, Float.class));
+            }
+
+            log.debug("Fetching embeddings for text: {}", text);
             EmbeddingsVectorRequest request = EmbeddingsVectorRequest.newBuilder()
                     .setText(text)
                     .build();
 
             EmbeddingsVectorReply reply = embeddingClient.createEmbeddingsVector(request);
-            return reply.getEmbeddingsList();
+            List<Float> embeddings = reply.getEmbeddingsList();
+
+            // Serialize and store the newly fetched embeddings in the cache
+            byte[] serializedEmbeddings = objectMapper.writeValueAsBytes(embeddings);
+            String encodedEmbedding = Base64.getEncoder().encodeToString(serializedEmbeddings);
+            vectorCache.put(text, encodedEmbedding);
+
+            return embeddings;
         } catch (Exception e) {
             log.error("Error fetching embeddings for text: {}", text, e);
             throw new RuntimeException("Error fetching embeddings for text: " + text, e);
@@ -134,5 +157,9 @@ public class VectorService {
         if (boost < 0.0f) {
             throw new IllegalArgumentException("boost must be non-negative");
         }
+    }
+
+    public void updateEmbeddingClient(EmbeddingServiceGrpc.EmbeddingServiceBlockingStub embeddingClient) {
+        this.embeddingClient = embeddingClient;
     }
 }

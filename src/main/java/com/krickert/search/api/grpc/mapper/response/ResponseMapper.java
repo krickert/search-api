@@ -1,6 +1,6 @@
 package com.krickert.search.api.grpc.mapper.response;
 
-import com.google.protobuf.Timestamp;
+import com.google.protobuf.*;
 import com.krickert.search.api.FacetResults;
 import com.krickert.search.api.SearchRequest;
 import com.krickert.search.api.SearchResponse;
@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+
+import static com.krickert.search.api.grpc.mapper.response.ToProtobuf.convertToValue;
 
 @Singleton
 public class ResponseMapper {
@@ -28,7 +30,7 @@ public class ResponseMapper {
 
         SearchResponse.Builder responseBuilder = SearchResponse.newBuilder();
 
-        // Map Solr documents to SearchResult
+        /// Map Solr documents to SearchResult
         for (SolrDocument doc : solrResponse.getResults()) {
             SearchResult.Builder resultBuilder = SearchResult.newBuilder();
 
@@ -38,15 +40,21 @@ public class ResponseMapper {
                 resultBuilder.setId(idObj.toString());
             }
 
+            // Create a Struct builder for the fields
+            Struct.Builder structBuilder = Struct.newBuilder();
+
             // Dynamically add fields based on 'fl' parameter
             for (String field : doc.getFieldNames()) {
                 Object value = doc.getFieldValue(field);
                 if (value != null) {
                     if (request.hasFieldList() && !request.getFieldList().getExclusionFieldsList().contains(field)) {
-                        resultBuilder.putFields(field, value.toString());
+                        // Convert the value to a Value type and add it to the Struct
+                        structBuilder.putFields(field, convertToValue(value));
                     }
                 }
             }
+            // Set the fields Struct in the result builder
+            resultBuilder.setFields(structBuilder.build());
 
             // Add snippets (highlighting)
             if (solrResponse.getHighlighting() != null && solrResponse.getHighlighting().size() > 1 && idObj != null) {
@@ -77,6 +85,7 @@ public class ResponseMapper {
 
         return responseBuilder.build();
     }
+
 
     private Set<String> extractIncludedFields(String fl) {
         Set<String> includedFields = new HashSet<>();
