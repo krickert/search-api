@@ -252,7 +252,7 @@
         <dependency>
             <groupId>org.infinispan</groupId>
             <artifactId>infinispan-jcache</artifactId>
-            <version>15.1.0.Dev04</version>
+            <version>16.0.0.Dev04</version>
             <scope>compile</scope>
         </dependency>
 
